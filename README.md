@@ -112,6 +112,8 @@ CLI rules (`allow`/`deny`) live in the ledger and take precedence over lists.
 
 They compose. ClawPhylax is the part that runs after the scanner said "no findings".
 
+**Neighbors on ClawHub you should know about:** [`@victorqr/clawguard`](https://clawhub.ai) (runtime tool-call interception, allow/deny/approve, file/network path rules, audit log), [`@clawnify/agent-permissions`](https://clawhub.ai) (allow/deny/ask engine for tool calls), [`policy-layer`](https://clawhub.ai) (dangerous-pattern and secret-redaction layers). They decide *which tool may run*. ClawPhylax records *which connection actually happened*, at the transport layer, including model calls through OpenClaw's own undici — and it adds the pre-install scan, the per-origin baseline, and witness cards. If you already run one of them, keep it; ClawPhylax sits underneath.
+
 ## Verified against
 
 OpenClaw 2026.6.1 on Node 24.16, Windows. Unit tests (`npm test`, 23 tests) cover the interceptor on a local HTTP server, exec analysis, the baseline gate, the scan and the CLI. The end-to-end run (`e2e/mock-provider.mjs`) drives the real embedded agent through a mock OpenAI-compatible provider and checks that the ledger contains both the provider call and the exec target. Plugin APIs are experimental upstream; every hook field is read defensively, so a renamed field costs attribution, never uptime.

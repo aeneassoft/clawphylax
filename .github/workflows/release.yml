@@ -1,0 +1,107 @@
+name: release
+# Publishes to npm and ClawHub from CI. No token ever touches a developer
+# machine: NPM_TOKEN and CLAWHUB_TOKEN are repository secrets.
+#
+# Run with dry_run=true first (default): validates the package, previews the
+# ClawHub publishes, needs no secrets. Then run with dry_run=false.
+#
+# After the first authenticated publish, both registries can switch to OIDC
+# trusted publishing (npm: package settings → Trusted publisher, workflow
+# release.yml; ClawHub: `clawhub package trusted-publisher set`).
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Preview only (no publish)"
+        type: boolean
+        default: true
+      publish_npm:
+        description: "Publish to npm"
+        type: boolean
+        default: true
+      publish_clawhub:
+        description: "Publish plugin + skill to ClawHub"
+        type: boolean
+        default: true
+      changelog:
+        description: "Release note shown on ClawHub"
+        type: string
+        default: "Initial release: pre-install scan, runtime egress attribution, destination baselines, witness cards."
+
+permissions: {}
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - run: npx tsc -p tsconfig.json
+      - run: npx vitest run
+      - run: npm pack --dry-run
+
+  npm:
+    needs: verify
+    if: ${{ inputs.publish_npm }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # provenance now; OIDC trusted publishing later
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - run: npx tsc -p tsconfig.json
+      - name: Publish (or dry run)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [[ "$DRY_RUN" == "true" ]]; then
+            npm publish --dry-run --access public
+          elif [[ -z "$NODE_AUTH_TOKEN" ]]; then
+            echo "::error::NPM_TOKEN secret is not set (or configure npm trusted publishing for this workflow)."; exit 1
+          else
+            npm publish --provenance --access public
+          fi
+
+  clawhub-plugin:
+    needs: verify
+    if: ${{ inputs.publish_clawhub }}
+    uses: openclaw/clawhub/.github/workflows/package-publish.yml@main
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    with:
+      source: aeneassoft/clawphylax@${{ github.sha }}
+      dry_run: ${{ inputs.dry_run }}
+      changelog: ${{ inputs.changelog }}
+      topics: security,skill-safety,verify-skill,exfiltration,network-audit,egress,supply-chain
+    secrets:
+      clawhub_token: ${{ secrets.CLAWHUB_TOKEN }}
+
+  clawhub-skill:
+    needs: verify
+    if: ${{ inputs.publish_clawhub }}
+    uses: openclaw/clawhub/.github/workflows/skill-publish.yml@main
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      skill_path: skill/clawphylax-verify
+      dry_run: ${{ inputs.dry_run }}
+      changelog: ${{ inputs.changelog }}
+      topics: security,skill-safety,verify-skill,exfiltration,network-audit,egress
+    secrets:
+      clawhub_token: ${{ secrets.CLAWHUB_TOKEN }}
