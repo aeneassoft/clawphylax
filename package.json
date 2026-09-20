@@ -5,13 +5,13 @@
   "type": "module",
   "license": "MIT",
   "author": "Leonhard Hampe",
-  "homepage": "https://github.com/clawphylax/clawphylax#readme",
+  "homepage": "https://github.com/LennySuperDupa/clawphylax#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/clawphylax/clawphylax.git"
+    "url": "git+https://github.com/LennySuperDupa/clawphylax.git"
   },
   "bugs": {
-    "url": "https://github.com/clawphylax/clawphylax/issues"
+    "url": "https://github.com/LennySuperDupa/clawphylax/issues"
   },
   "keywords": [
     "openclaw",
