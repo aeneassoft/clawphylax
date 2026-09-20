@@ -1,0 +1,67 @@
+{
+  "id": "clawphylax",
+  "name": "ClawPhylax",
+  "version": "0.1.0",
+  "description": "Verify skills are safe before installing and see where installed skills send data: scans a skill folder for hosts, uploads and credential reads; attributes every outbound connection at runtime to the skill or tool that caused it; flags exfiltration patterns and unexpected hosts. Local ledger, no cloud, observe-only by default.",
+  "categories": ["security"],
+  "contracts": {
+    "tools": ["clawphylax_report", "clawphylax_hosts", "clawphylax_scan", "clawphylax_card"]
+  },
+  "activation": {
+    "onStartup": true,
+    "onCommands": ["clawphylax"]
+  },
+  "cliCommands": [
+    {
+      "name": "clawphylax",
+      "description": "Report outbound network activity per skill and tool call",
+      "hasSubcommands": true
+    }
+  ],
+  "commandAliases": [
+    {
+      "name": "clawphylax",
+      "kind": "cli"
+    }
+  ],
+  "configGroups": [
+    {
+      "id": "behavior",
+      "title": "Behavior",
+      "order": 10,
+      "properties": ["mode", "notify"]
+    },
+    {
+      "id": "lists",
+      "title": "Host lists",
+      "order": 20,
+      "properties": ["denylist", "allowlist"]
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "mode": {
+        "type": "string",
+        "enum": ["observe", "enforce"],
+        "description": "observe: record and flag only (default). enforce: block exec commands and in-process requests to denylisted hosts."
+      },
+      "notify": {
+        "type": "string",
+        "enum": ["footer", "off"],
+        "description": "footer: append a one-line summary to the agent reply when a run contacted new or suspicious hosts (default). off: ledger only."
+      },
+      "denylist": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Extra hostnames or suffixes treated as suspicious (merged with the built-in list)."
+      },
+      "allowlist": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Hostnames or suffixes never flagged and never blocked."
+      }
+    }
+  }
+}

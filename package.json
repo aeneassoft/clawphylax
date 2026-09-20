@@ -1,0 +1,70 @@
+{
+  "name": "clawphylax",
+  "version": "0.1.0",
+  "description": "Verify OpenClaw skills before installing and see where installed skills send data: pre-install scan for hosts, uploads and credential reads; runtime attribution of every outbound connection to the skill or tool that caused it. Local, zero-config, no cloud.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Leonhard Hampe",
+  "homepage": "https://github.com/clawphylax/clawphylax#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/clawphylax/clawphylax.git"
+  },
+  "bugs": {
+    "url": "https://github.com/clawphylax/clawphylax/issues"
+  },
+  "keywords": [
+    "openclaw",
+    "openclaw-plugin",
+    "openclaw-skill",
+    "ai-agents",
+    "agent-security",
+    "supply-chain",
+    "egress",
+    "network-monitor",
+    "exfiltration",
+    "skill-audit"
+  ],
+  "engines": {
+    "node": ">=24.16"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "plugin:link": "npm run build && openclaw plugins install --link . && openclaw plugins enable clawphylax",
+    "plugin:inspect": "openclaw plugins inspect clawphylax --runtime --json",
+    "prepack": "npm run build"
+  },
+  "files": [
+    "dist",
+    "openclaw.plugin.json",
+    "skill",
+    "README.md",
+    "LICENSE"
+  ],
+  "peerDependencies": {
+    "openclaw": ">=2026.5.17"
+  },
+  "peerDependenciesMeta": {
+    "openclaw": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.6",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
+  },
+  "openclaw": {
+    "extensions": [
+      "./dist/index.js"
+    ],
+    "compat": {
+      "pluginApi": ">=2026.5.17",
+      "minGatewayVersion": "2026.5.17"
+    }
+  },
+  "dependencies": {
+    "typebox": "^1.3.34"
+  }
+}
