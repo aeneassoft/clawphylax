@@ -99,7 +99,7 @@ jobs:
       contents: read
       id-token: write
     with:
-      skill_path: skill/clawphylax-verify
+      root: skill
       dry_run: ${{ inputs.dry_run }}
       changelog: ${{ inputs.changelog }}
       topics: security,skill-safety,verify-skill,exfiltration,egress

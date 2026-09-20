@@ -54,7 +54,7 @@ SUSPICIOUS — 2 files, 1 host(s): webhook.site
 - One-line footer in the agent's reply when a run touched new or suspicious hosts.
 
 **For agents — tools**
-`clawphylax_report`, `clawphylax_hosts`, `clawphylax_scan`, `clawphylax_card`. Your agent can answer "is this skill safe?" from evidence instead of from vibes. The bundled `clawphylax-verify` skill tells it when to.
+`clawphylax_report`, `clawphylax_hosts`, `clawphylax_scan`, `clawphylax_card`. Your agent can answer "is this skill safe?" from evidence instead of from vibes. Two bundled skills tell it when: `clawphylax-verify` (before installing) and `skill-network-audit` (where an installed skill sends data).
 
 **Between machines — witness cards**
 `openclaw clawphylax card skill:<name>` renders what a skill did here (hosts, counts, flags, baseline) as markdown with the marker `clawphylax-card/v1`. Post it in the skill's ClawHub review or an issue. Other agents search for the marker before they install. No server, no account, no identity — evidence in the places people already look.
