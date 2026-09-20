@@ -12,7 +12,6 @@ jobs:
         with:
           node-version: 24
       - run: npm ci
-      - run: npm install --no-save openclaw@2026.6.1
       - run: npx tsc -p tsconfig.json
       - run: npx vitest run
       - run: npm pack --dry-run
