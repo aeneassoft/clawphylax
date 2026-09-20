@@ -148,7 +148,7 @@ export default definePluginEntry({
       handler: async (ctx: any) => {
         try {
           const args = String(ctx?.args ?? "").trim();
-          const [sub, ...rest] = args.split(/s+/).filter(Boolean);
+          const [sub, ...rest] = args.split(/\s+/).filter(Boolean);
           const arg = rest.join(" ");
           if (!sub || sub === "report") {
             return { text: renderSummary(core.ledger, sinceMs(arg)) };
@@ -165,8 +165,7 @@ export default definePluginEntry({
             for (const f of r.findings.slice(0, 20)) {
               lines.push(`${f.file}:${f.line}  ${f.host ? `${f.method} ${f.host}` : "(no host)"}${f.upload ? " [upload]" : ""}${f.sensitiveRead ? " [sensitive-read]" : ""}`);
             }
-            return { text: lines.join("
-") };
+            return { text: lines.join("\n") };
           }
           return { text: "Usage: /phylax [report [24h]] | scan <folder> | hosts <origin> | card <origin>" };
         } catch (err: any) {
