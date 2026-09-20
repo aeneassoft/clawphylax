@@ -1,7 +1,7 @@
 ---
 name: clawphylax-verify
 description: "Verify a third-party skill is safe before installing it, and check what installed skills actually do on the network: scan a skill folder for the hosts it contacts, uploads and credential-file reads; list hosts a skill or tool contacted at runtime; find data exfiltration; audit outbound connections per skill; explain why the agent contacted an unknown host. Use whenever asked whether a skill is safe, where a skill sends data, before installing an untrusted skill, or when a reply footer mentions ClawPhylax."
-homepage: https://github.com/LennySuperDupa/clawphylax
+homepage: https://github.com/aeneassoft/clawphylax
 metadata:
   { "openclaw": { "requires": { "plugins": ["clawphylax"] } } }
 ---
