@@ -1,6 +1,6 @@
 ---
 name: skill-network-audit
-description: "Find out where an installed skill sends data: list every network host a skill or tool contacted at runtime, with counts, uploads, credential reads and flagged or unexpected hosts, from the ClawPhylax ledger. Audit outbound connections per skill, explain why the agent contacted an unknown host, detect data exfiltration after install, and share a witness card of a skill's real behavior. Use when asked what a skill is doing on the network, why something contacted a host, or when a reply footer mentions ClawPhylax."
+description: "Where does this skill send data? What hosts did it contact? Find out where an installed skill sends data: list every network host a skill or tool contacted at runtime, with counts, uploads, credential reads and flagged or unexpected hosts, from the ClawPhylax ledger. Audit outbound connections per skill, explain why the agent contacted an unknown host, detect data exfiltration after install, and share a witness card of a skill's real behavior. Use when asked what a skill is doing on the network, why something contacted a host, or when a reply footer mentions ClawPhylax."
 homepage: https://github.com/aeneassoft/clawphylax
 license: MIT
 metadata:

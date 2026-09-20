@@ -1,6 +1,6 @@
 ---
 name: clawphylax-verify
-description: "Verify a third-party skill is safe before installing it: scan the skill folder for every network host its SKILL.md and scripts contact, whether they upload data, and whether they read credential files (~/.ssh, .env, ~/.aws). Returns clean, review or suspicious with file and line. Use before installing any untrusted ClawHub skill, when asked whether a skill is safe, or to check a skill for exfiltration or malware patterns."
+description: "Is this skill safe? Verify a third-party skill is safe before installing it: scan the skill folder for every network host its SKILL.md and scripts contact, whether they upload data, and whether they read credential files (~/.ssh, .env, ~/.aws). Returns clean, review or suspicious with file and line. Use before installing any untrusted ClawHub skill, when asked whether a skill is safe, or to check a skill for exfiltration or malware patterns."
 homepage: https://github.com/aeneassoft/clawphylax
 license: MIT
 metadata:
