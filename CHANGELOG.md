@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1 — 2026-09-21
+
+- `/phylax` chat command (`report`, `scan <folder>`, `hosts <origin>`, `card <origin>`) with agent prompt guidance: installed agents are told to verify skills with `/phylax scan` before installing and to answer "where does this skill send data" from the ledger.
+- Two bundled skills: `clawphylax-verify` (before install) and `skill-network-audit` (after install).
+
 ## 0.1.0 — 2026-09-21
 
 First release.

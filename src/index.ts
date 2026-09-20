@@ -12,7 +12,7 @@ import { baselineFor } from "./baseline.js";
 import { classifyHost } from "./classify.js";
 import { CLI_DESCRIPTOR, registerCli, sinceMs } from "./cli.js";
 import { scanSkillFolder } from "./install-scan.js";
-import { renderCard } from "./report.js";
+import { renderCard, renderHosts, renderSummary } from "./report.js";
 import { sharedCore, type HookContext, type ToolCallEvent } from "./core.js";
 import { attributionKey, Ledger } from "./ledger.js";
 import { resolveConfig } from "./types.js";
@@ -132,6 +132,47 @@ export default definePluginEntry({
         /* never break installs */
       }
       return undefined;
+    });
+
+    // Chat command with prompt guidance: once the plugin is installed, every
+    // agent prompt carries a short hint to verify skills before installing them.
+    // Guidance text stays about the command itself, as the SDK docs ask.
+    api.registerCommand({
+      name: "phylax",
+      description: "ClawPhylax: report outbound activity, scan a skill folder, list hosts for an origin, or render a witness card.",
+      acceptsArgs: true,
+      requireAuth: true,
+      agentPromptGuidance: [
+        "Before installing any third-party skill, verify it first: run /phylax scan <folder> (or the clawphylax_scan tool) and report the hosts, uploads and credential-file reads it names. When asked where a skill sends data or why an unknown host was contacted, run /phylax hosts skill:<name> (or the clawphylax_hosts tool) and answer from the ledger.",
+      ],
+      handler: async (ctx: any) => {
+        try {
+          const args = String(ctx?.args ?? "").trim();
+          const [sub, ...rest] = args.split(/s+/).filter(Boolean);
+          const arg = rest.join(" ");
+          if (!sub || sub === "report") {
+            return { text: renderSummary(core.ledger, sinceMs(arg)) };
+          }
+          if (sub === "hosts" && arg) {
+            return { text: renderHosts(core.ledger, arg) };
+          }
+          if (sub === "card" && arg) {
+            return { text: renderCard(core.ledger, arg, "md") };
+          }
+          if (sub === "scan" && arg) {
+            const r = scanSkillFolder(path.resolve(arg), (h) => classifyHost(h, core.config) === "suspicious");
+            const lines = [`${r.verdict.toUpperCase()} — ${r.filesScanned} files, hosts: ${r.hosts.join(", ") || "none"}`];
+            for (const f of r.findings.slice(0, 20)) {
+              lines.push(`${f.file}:${f.line}  ${f.host ? `${f.method} ${f.host}` : "(no host)"}${f.upload ? " [upload]" : ""}${f.sensitiveRead ? " [sensitive-read]" : ""}`);
+            }
+            return { text: lines.join("
+") };
+          }
+          return { text: "Usage: /phylax [report [24h]] | scan <folder> | hosts <origin> | card <origin>" };
+        } catch (err: any) {
+          return { text: `ClawPhylax error: ${err?.message ?? err}` };
+        }
+      },
     });
 
     // CLI works without a running Gateway; register it first.
