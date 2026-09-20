@@ -87,7 +87,7 @@ jobs:
       source: aeneassoft/clawphylax@${{ github.sha }}
       dry_run: ${{ inputs.dry_run }}
       changelog: ${{ inputs.changelog }}
-      topics: security,skill-safety,verify-skill,exfiltration,network-audit,egress,supply-chain
+      topics: security,skill-safety,verify-skill,exfiltration,egress
     secrets:
       clawhub_token: ${{ secrets.CLAWHUB_TOKEN }}
 
@@ -102,6 +102,6 @@ jobs:
       skill_path: skill/clawphylax-verify
       dry_run: ${{ inputs.dry_run }}
       changelog: ${{ inputs.changelog }}
-      topics: security,skill-safety,verify-skill,exfiltration,network-audit,egress
+      topics: security,skill-safety,verify-skill,exfiltration,egress
     secrets:
       clawhub_token: ${{ secrets.CLAWHUB_TOKEN }}
