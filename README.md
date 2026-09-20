@@ -4,7 +4,7 @@
 Every outbound connection of your OpenClaw agent, attributed to the skill or tool that caused it. In-process, no proxy, no cloud, no config.
 
 ```bash
-openclaw plugins install clawphylax
+openclaw plugins install clawhub:clawphylax
 openclaw plugins enable clawphylax
 ```
 
