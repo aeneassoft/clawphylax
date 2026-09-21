@@ -1,8 +1,8 @@
 {
   "id": "clawphylax",
   "name": "ClawPhylax",
-  "version": "0.2.0",
-  "description": "Verify skills are safe before installing and see where installed skills send data: scans a skill folder for hosts, uploads and credential reads; attributes every outbound connection at runtime to the skill or tool that caused it; flags exfiltration patterns and unexpected hosts. Local ledger, no cloud, observe-only by default.",
+  "version": "0.3.0",
+  "description": "Skill safety and agent self-diagnostics for OpenClaw: verify skills before install, see where installed skills send data, and let the agent ask itself the troubleshooting questions — will this request work, why do I keep failing, should I stop and ask, am I going in circles, could this get the user banned, what has this cost, which path is worth it. Local ledger, no cloud, observe-only by default.",
   "categories": [
     "security"
   ],
@@ -12,7 +12,17 @@
       "clawphylax_hosts",
       "clawphylax_scan",
       "clawphylax_card",
-      "clawphylax_outlook"
+      "clawphylax_outlook",
+      "clawphylax_failures",
+      "clawphylax_stop_or_continue",
+      "clawphylax_circles",
+      "clawphylax_risk_check",
+      "clawphylax_others",
+      "clawphylax_exploration",
+      "clawphylax_what_worked",
+      "clawphylax_cost",
+      "clawphylax_which_path",
+      "clawphylax_share"
     ]
   },
   "activation": {

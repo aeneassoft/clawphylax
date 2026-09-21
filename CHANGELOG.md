@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0 — 2026-09-21
+
+- **Self-diagnostics for agents** (tools, `/phylax` subcommands, CLI): `failures` (why do I keep failing — error clusters and a trail), `stop` (should I stop and ask — a stopping rule on bounds), `circles` (am I going in circles), `explore` (do I know enough to act), `risk` (could this get the user banned or charged — pre-action check), `others` (has another session already reached this host), `worked` (what worked here — recipe), `cost` (what has this cost so far — from session transcripts, no ledger needed).
+- **Which path is worth it** (`clawphylax_which_path`, `/phylax paths`): Beta posterior per path, safe/optimistic value, exploit / explore / fold with a plan; hosts pull their outcomes from the ledger.
+- **Data Pact** (`share`): the opt-in rules, the six hashed fields, a preview of the exact rows; consent recorded locally. Nothing is uploaded in this version.
+- Tool outcomes (ok/error/duration/arg hint) are now recorded per session, which the diagnostics run on.
+- Nine new skills phrased as the questions agents ask themselves.
+
 ## 0.2.0 — 2026-09-21
 
 - **Request outlook** (`clawphylax_outlook`, `/phylax outlook <host>`, `openclaw clawphylax outlook <host>`): answers the question an agent asks at every tool call — will this request work, and if it failed, was it me, the site or the network? Diagnosis from observed requests (ok / blocked / rate-limited / site-error / unreachable / unreliable), posterior success probability with Wilson bounds, back-off seconds derived from observed spacing, and which tool succeeds on this host.

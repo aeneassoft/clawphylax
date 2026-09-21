@@ -56,11 +56,31 @@ SUSPICIOUS — 2 files, 1 host(s): webhook.site
 **At every tool call — the outlook**
 `clawphylax_outlook` / `openclaw clawphylax outlook <host>` / `/phylax outlook <host>` answers the question an agent asks a hundred times a day and nobody answers: *will this request work, and if it just failed, was it me, the site, or the network?* From the requests this machine already observed: a diagnosis (`ok` / `blocked` / `rate-limited` / `site-error` / `unreachable` / `unreliable`), the posterior probability that the next attempt succeeds with Wilson bounds, seconds to back off derived from the observed spacing, and which tool actually succeeds on that host. A 403 streak after earlier successes says *stop, you are being refused* — the failure mode that got agents banned from Resy. The prompt guidance tells installed agents to ask before retrying.
 
+**While troubleshooting — self-diagnostics**
+The questions an agent asks itself when a task goes wrong, each answered from the ledger of this machine, each ending in the next concrete action:
+
+| Question | Tool / command | What it computes |
+|---|---|---|
+| Why do I keep failing? | `clawphylax_failures` · `/phylax failures` | failures clustered by tool, host and error signature; the dominant cause and its share; a compact trail to reason about |
+| Should I stop and ask the user? | `clawphylax_stop_or_continue` · `/phylax stop` | a stopping rule: success bounds across distinct approaches, attempts since the last success, hosts refusing you → continue / change-approach / stop-and-ask |
+| Am I going in circles? | `clawphylax_circles` · `/phylax circles` | repetition index, the most-repeated failing call, success trend → on-track / repeating / stuck |
+| Do I know enough to act? | `clawphylax_exploration` · `/phylax explore` | gathering vs acting calls, distinct sources → acting-blind / still-exploring / balanced |
+| Could this get the user banned or charged? | `clawphylax_risk_check` · `/phylax risk <host|command>` | drop hosts, refusing or rate-limiting hosts, credential-read + upload, billed APIs, purchase paths → ok / caution / stop |
+| Has another agent already solved this? | `clawphylax_others` · `/phylax others <host>` | successful routes to the host from other sessions on this machine |
+| What worked here? | `clawphylax_what_worked` · `/phylax worked <host>` | tool/method/route combinations ranked by lower bound, as a recipe |
+| What has this cost so far? | `clawphylax_cost` · `/phylax cost` | tokens and provider cost from OpenClaw's own transcripts — works without the plugin |
+| Which path is worth it? | `clawphylax_which_path` · `/phylax paths <json>` | Beta posterior per path, safe and optimistic value, exploit / explore / fold with a plan |
+
+The last one is the poker engine's decision rule in the open: never fold on a point estimate, pay for information only where the interval is wide.
+
 **For agents — tools**
-`clawphylax_report`, `clawphylax_hosts`, `clawphylax_scan`, `clawphylax_card`, `clawphylax_outlook`. Your agent can answer "is this skill safe?" from evidence instead of from vibes. Three bundled skills tell it when: `clawphylax-verify` (before installing), `skill-network-audit` (where an installed skill sends data) and `why-did-my-request-fail` (before retrying).
+Fifteen tools and the `/phylax` command. Twelve bundled skills, each named after the literal question an agent asks itself, so ClawHub's search finds them at the moment of need — from `clawphylax-verify` (before installing) to `which-path-is-worth-it` (before choosing). Every skill carries a visible "For agents" section that lists the set and says plainly which ones need the plugin.
 
 **Between machines — witness cards**
 `openclaw clawphylax card skill:<name>` renders what a skill did here (hosts, counts, flags, baseline) as markdown with the marker `clawphylax-card/v1`. Post it in the skill's ClawHub review or an issue. Other agents search for the marker before they install. No server, no account, no identity — evidence in the places people already look.
+
+**The Data Pact — opt-in, off, and not live yet**
+`openclaw clawphylax share pact` prints the rules under which contributors may one day pool six hashed fields per request (host hash, method, status class, latency bucket, tool, day) to get an outlook with context, early warnings, and witness-card matching. `share --preview` shows the exact rows. The switch records consent locally; nothing leaves the machine in this version. Rules, guarantees and the no-inheritance clause: [DATA-PACT.md](DATA-PACT.md).
 
 **Observe-only by default.** `mode: "enforce"` blocks in-process requests and `exec` commands to denylisted hosts before they run.
 
@@ -81,6 +101,12 @@ openclaw clawphylax hosts skill:notes-sync
 openclaw clawphylax recent [--limit 50] [--origin tool:exec]
 openclaw clawphylax scan ./skills/some-skill [--json]
 openclaw clawphylax outlook api.example.com [--window 60] [--json]
+openclaw clawphylax failures | stop | circles | explore        # self-diagnostics for the current session
+openclaw clawphylax risk <host|command>                        # before an action
+openclaw clawphylax others <host> | worked <host>              # reuse what succeeded
+openclaw clawphylax cost [--window 120]                        # tokens and cost from transcripts
+openclaw clawphylax paths '<json>' [--budget 12]               # exploit / explore / fold
+openclaw clawphylax share [pact|preview|on|off]                # the Data Pact
 openclaw clawphylax card skill:notes-sync [--json]
 openclaw clawphylax allow  skill:notes-sync api.notion.com
 openclaw clawphylax deny   '*' pastebin.com
@@ -120,7 +146,7 @@ They compose. ClawPhylax is the part that runs after the scanner said "no findin
 
 ## Verified against
 
-OpenClaw 2026.6.1 on Node 24.16, Windows. Unit tests (`npm test`, 23 tests) cover the interceptor on a local HTTP server, exec analysis, the baseline gate, the scan and the CLI. The end-to-end run (`e2e/mock-provider.mjs`) drives the real embedded agent through a mock OpenAI-compatible provider and checks that the ledger contains both the provider call and the exec target. Plugin APIs are experimental upstream; every hook field is read defensively, so a renamed field costs attribution, never uptime.
+OpenClaw 2026.6.1 on Node 24.16, Windows. Unit tests (`npm test`, 55 tests) cover the interceptor on a local HTTP server, exec analysis, the baseline gate, the scan and the CLI. The end-to-end run (`e2e/mock-provider.mjs`) drives the real embedded agent through a mock OpenAI-compatible provider and checks that the ledger contains both the provider call and the exec target. Plugin APIs are experimental upstream; every hook field is read defensively, so a renamed field costs attribution, never uptime.
 
 ## Roadmap
 

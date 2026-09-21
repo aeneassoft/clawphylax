@@ -1,7 +1,11 @@
 // `openclaw clawphylax …` — reads the ledger; does not need the Gateway.
 
 import { Ledger, defaultLedgerPath } from "./ledger.js";
+import { costReport } from "./cost.js";
+import { circlesCheck, explorationCheck, failureReport, othersSolved, riskCheck, stopOrContinue, whatWorked } from "./diagnostics.js";
 import { outlookFor, renderOutlook } from "./outlook.js";
+import { renderPaths, whichPath } from "./paths.js";
+import { getConsent, PACT_TEXT, previewRows, setConsent } from "./share.js";
 import { renderCard, renderHosts, renderRecent, renderSummary, summaryJson } from "./report.js";
 
 type Command = {
@@ -159,6 +163,47 @@ export function registerCli(program: Command, out: (s: string) => void = (s) => 
         l.close();
       }
     });
+
+  const withLedger = (opts: Record<string, unknown>, fn: (l: Ledger) => string) => {
+    const l = new Ledger(typeof opts.db === "string" ? opts.db : defaultLedgerPath());
+    try {
+      out(fn(l));
+    } finally {
+      l.close();
+    }
+  };
+  const J = (opts: Record<string, unknown>, obj: unknown, t: string) => (opts.json ? JSON.stringify(obj, null, 2) : t);
+
+  root.command("failures").description("Why do I keep failing? Cluster this session's failures by cause").option("--session <key>").option("--window <minutes>", "look-back", "120").option("--json").option("--db <path>").action((o: Record<string, unknown>) =>
+    withLedger(o, (l) => { const r = failureReport(l, { sessionKey: o.session as string | undefined, windowMinutes: Number(o.window ?? 120) }); return J(o, r, `${r.nextQuestion}\n${r.clusters.slice(0, 8).map((x) => `- ${x.tool}${x.host ? "@" + x.host : ""} "${x.signature}" ×${x.count} (${Math.round(x.share * 100)}%)`).join("\n")}`); }));
+  root.command("stop").description("Should I stop and ask? Stopping rule for the current session").option("--session <key>").option("--json").option("--db <path>").action((o: Record<string, unknown>) =>
+    withLedger(o, (l) => { const r = stopOrContinue(l, { sessionKey: o.session as string | undefined }); return J(o, r, `${r.verdict.toUpperCase()}: ${r.say}`); }));
+  root.command("circles").description("Am I going in circles? Repetition in recent tool calls").option("--session <key>").option("--json").option("--db <path>").action((o: Record<string, unknown>) =>
+    withLedger(o, (l) => { const r = circlesCheck(l, { sessionKey: o.session as string | undefined }); return J(o, r, `${r.verdict.toUpperCase()}: ${r.say}`); }));
+  root.command("explore").description("Do I know enough to act? Gathering vs acting in the session").option("--session <key>").option("--json").option("--db <path>").action((o: Record<string, unknown>) =>
+    withLedger(o, (l) => { const r = explorationCheck(l, { sessionKey: o.session as string | undefined }); return J(o, r, `${r.verdict.toUpperCase()}: ${r.say}`); }));
+  root.command("risk").description("Could this get the user banned or charged? Check a host or a command before running it").argument("<target>").option("--json").option("--db <path>").action(async (target: string, o: Record<string, unknown>) => {
+    const { DEFAULT_CONFIG } = await import("./types.js");
+    withLedger(o, (l) => { const r = riskCheck(l, DEFAULT_CONFIG, /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(target) ? { host: target } : { command: target }); return J(o, r, `${r.verdict.toUpperCase()}: ${r.say}`); });
+  });
+  root.command("others").description("Has another session already reached this host?").argument("<host>").option("--exclude <session>").option("--json").option("--db <path>").action((host: string, o: Record<string, unknown>) =>
+    withLedger(o, (l) => { const r = othersSolved(l, host, { excludeSession: o.exclude as string | undefined }); return J(o, r, r.say); }));
+  root.command("worked").description("What worked on this host? Recipe of successful tool/route combinations").argument("<host>").option("--json").option("--db <path>").action((host: string, o: Record<string, unknown>) =>
+    withLedger(o, (l) => { const r = whatWorked(l, host); return J(o, r, r.markdown); }));
+  root.command("cost").description("What has this cost so far? Tokens and cost from session transcripts (no ledger needed)").option("--window <minutes>").option("--session <id>").option("--json").action((o: Record<string, unknown>) => {
+    const r = costReport({ windowMinutes: o.window ? Number(o.window) : undefined, sessionId: o.session as string | undefined });
+    out(J(o, r, `${r.say}\n${r.sessions.slice(0, 10).map((s) => `- ${s.agent}/${s.sessionId.slice(0, 8)}  ${s.totalTokens.toLocaleString()} tok  ${s.cost ? "$" + s.cost.toFixed(4) : "-"}  ${s.toolCalls} tool calls`).join("\n")}`));
+  });
+  root.command("paths").description("Which path is worth it? JSON array of {name,successes,failures,prior,costPerAttempt,valueIfSuccess}").argument("<json>").option("--budget <n>").option("--json").option("--db <path>").action((json: string, o: Record<string, unknown>) =>
+    withLedger(o, (l) => { const parsed = JSON.parse(json); const r = whichPath(Array.isArray(parsed) ? parsed : parsed.paths ?? [], { budget: o.budget ? Number(o.budget) : parsed.budget, ledger: l }); return J(o, r, renderPaths(r)); }));
+  root.command("share").description("Data Pact: status | preview | on | off | pact (nothing leaves the machine in this version)").argument("[action]").option("--db <path>").action((action: string | undefined, o: Record<string, unknown>) =>
+    withLedger(o, (l) => {
+      const a = action ?? "status";
+      if (a === "pact") return PACT_TEXT;
+      if (a === "on" || a === "off") { const c = setConsent(l, a === "on"); return `Sharing consent: ${c.on ? "ON (recorded " + c.since + ")" : "OFF"}. Nothing leaves this machine in this version.`; }
+      const c = getConsent(l); const rows = previewRows(l, a === "preview" ? 50 : 5);
+      return `consent: ${c.on ? "on since " + c.since : "off"} · nothing leaves this machine in this version\nrows that would be shared:\n${rows.map((r) => "  " + JSON.stringify(r)).join("\n") || "  (none yet)"}\n\nopenclaw clawphylax share pact  — the rules`;
+    }));
 
   root
     .command("card")

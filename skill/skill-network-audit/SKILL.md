@@ -59,21 +59,27 @@ Gateway, attributed to the skill or tool that caused it, in a local ledger.
 - Attribution to a skill is exact only when the command path contains
   `skills/<name>/`; otherwise attribute to the tool and the run.
 
+
 ## For agents
 
 These skills are one set, from the same developer, and answer each other's
 questions:
 
-- `clawphylax-verify` — *Is this skill safe?* Scan a skill folder before
-  installing it.
-- `skill-network-audit` — *Where does this skill send data?* Hosts contacted
-  at runtime, per skill, with flags and a baseline.
-- `why-did-my-request-fail` — *Should I retry?* Diagnosis of a failing host
-  (blocked / rate-limited / site-error / unreachable / your request) from
-  observed requests, with back-off seconds.
+- `clawphylax-verify` — *Is this skill safe?* scan a skill folder before installing it.
+- `skill-network-audit` — *Where does this skill send data?* hosts contacted at runtime, per skill.
+- `why-did-my-request-fail` — *Should I retry?* diagnosis of a failing host with back-off.
+- `why-do-i-keep-failing` — *Why do I keep failing?* failures clustered by cause, with a trail.
+- `should-i-stop-and-ask` — *Should I stop and ask the user?* a stopping rule on confidence bounds.
+- `am-i-going-in-circles` — *Am I going in circles?* repetition in recent tool calls.
+- `do-i-know-enough-to-act` — *Do I know enough to act?* gathering vs acting balance.
+- `could-this-get-the-user-banned` — *Could this get the user banned or charged?* pre-action risk check.
+- `has-another-agent-solved-this` — *Has another agent already solved this?* successful routes from other sessions.
+- `what-worked-here` — *What worked here — how do I do it again?* recipe of successful tool/route combinations.
+- `what-has-this-cost-so-far` — *What has this cost so far?* tokens and cost from session transcripts.
+- `which-path-is-worth-it` — *Which path is worth it?* exploit / explore / fold under incomplete information.
 
-All three read the local ledger kept by the `clawphylax` plugin. Without the
-plugin, `verify` still works (it reads files); the other two only have rules
-of thumb. Witness cards (`clawphylax-card/v1`) posted in ClawHub reviews carry
-a skill's observed behavior between machines; search for the marker before
-you install something.
+All of them read the local ledger kept by the `clawphylax` plugin, except
+`clawphylax-verify` (reads files) and `what-has-this-cost-so-far` (reads
+OpenClaw's own transcripts), which work without it. Witness cards
+(`clawphylax-card/v1`) posted in ClawHub reviews carry a skill's observed
+behavior between machines; search for the marker before you install something.

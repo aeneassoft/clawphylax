@@ -12,7 +12,11 @@ import { baselineFor } from "./baseline.js";
 import { classifyHost } from "./classify.js";
 import { CLI_DESCRIPTOR, registerCli, sinceMs } from "./cli.js";
 import { scanSkillFolder } from "./install-scan.js";
+import { costReport } from "./cost.js";
+import { circlesCheck, explorationCheck, failureReport, othersSolved, riskCheck, stopOrContinue, whatWorked } from "./diagnostics.js";
 import { outlookFor, renderOutlook } from "./outlook.js";
+import { renderPaths, whichPath, type PathInput } from "./paths.js";
+import { getConsent, PACT_TEXT, previewRows, setConsent } from "./share.js";
 import { renderCard, renderHosts, renderSummary } from "./report.js";
 import { sharedCore, type HookContext, type ToolCallEvent } from "./core.js";
 import { attributionKey, Ledger } from "./ledger.js";
@@ -29,6 +33,12 @@ function toolEvent(e: unknown): ToolCallEvent {
     params: r.params ?? r.args ?? r.input,
     toolCallId: str(r.toolCallId) ?? str(r.callId) ?? str(r.id),
     runId: str(r.runId),
+    error:
+      str(r.error) ??
+      (r.error && typeof r.error === "object" ? str((r.error as any).message) : undefined) ??
+      (typeof r.errorText === "string" ? r.errorText : undefined),
+    ok: typeof r.ok === "boolean" ? r.ok : typeof r.success === "boolean" ? r.success : typeof r.isError === "boolean" ? !r.isError : undefined,
+    durationMs: typeof r.durationMs === "number" ? r.durationMs : typeof r.duration === "number" ? r.duration : undefined,
   };
 }
 
@@ -112,6 +122,119 @@ export default definePluginEntry({
         return { content: [{ type: "text", text: renderOutlook(o) }], details: o };
       },
     });
+
+    // ---- Self-diagnostics: the questions an agent asks itself while troubleshooting.
+    const text = (t: string, details: unknown) => ({ content: [{ type: "text", text: t }], details });
+    api.registerTool({
+      name: "clawphylax_failures",
+      description: "Why do I keep failing? Clusters this session's failed tool calls and failed requests by tool, host and error signature, says which single cause explains most of them, and returns a compact trail of the last failures for you to reason about. Use when errors pile up and you are about to retry.",
+      parameters: Type.Object({ sessionKey: Type.Optional(Type.String()), windowMinutes: Type.Optional(Type.Number()) }),
+      async execute(_id: string, p: { sessionKey?: string; windowMinutes?: number }) {
+        const r = failureReport(core.ledger, { sessionKey: p?.sessionKey ?? core.lastSessionKey, windowMinutes: p?.windowMinutes });
+        return text(`${r.nextQuestion}\n\nfailures: ${r.failures} of ${r.attempts} tool calls · clusters: ${r.clusters.slice(0, 5).map((c) => `${c.tool}${c.host ? "@" + c.host : ""} "${c.signature}" ×${c.count}`).join(" | ")}\ntrail: ${r.trail.map((t) => `${t.t} ${t.tool} ${t.hint ?? ""} → ${t.error ?? "?"}`).join(" ; ")}`, r);
+      },
+    });
+    api.registerTool({
+      name: "clawphylax_stop_or_continue",
+      description: "Should I stop and ask the user, change approach, or continue? A stopping rule from this session's attempts: success rate with confidence bounds across distinct approaches, attempts since the last success, and hosts that are refusing you. Use when a task is dragging on or before yet another retry.",
+      parameters: Type.Object({ sessionKey: Type.Optional(Type.String()), windowMinutes: Type.Optional(Type.Number()) }),
+      async execute(_id: string, p: { sessionKey?: string; windowMinutes?: number }) {
+        const r = stopOrContinue(core.ledger, { sessionKey: p?.sessionKey ?? core.lastSessionKey, windowMinutes: p?.windowMinutes });
+        return text(`${r.verdict.toUpperCase()}: ${r.say}`, r);
+      },
+    });
+    api.registerTool({
+      name: "clawphylax_circles",
+      description: "Am I going in circles? Measures repetition in this session's recent tool calls (same call repeated, identical failures, falling success rate) and tells you whether you are on track, repeating yourself, or stuck. Use when you notice you have done something before.",
+      parameters: Type.Object({ sessionKey: Type.Optional(Type.String()) }),
+      async execute(_id: string, p: { sessionKey?: string }) {
+        const r = circlesCheck(core.ledger, { sessionKey: p?.sessionKey ?? core.lastSessionKey });
+        return text(`${r.verdict.toUpperCase()}: ${r.say}`, r);
+      },
+    });
+    api.registerTool({
+      name: "clawphylax_risk_check",
+      description: "Could this action get the user banned, charged, or exposed? Check a host or a shell command BEFORE running it: known drop hosts, hosts currently refusing or rate-limiting you, credential reads combined with uploads, per-call billed APIs, purchase or billing paths. Returns ok / caution / stop with reasons.",
+      parameters: Type.Object({ host: Type.Optional(Type.String()), path: Type.Optional(Type.String()), method: Type.Optional(Type.String()), command: Type.Optional(Type.String()) }),
+      async execute(_id: string, p: { host?: string; path?: string; method?: string; command?: string }) {
+        const r = riskCheck(core.ledger, core.config, p ?? {});
+        return text(`${r.verdict.toUpperCase()}: ${r.say}`, r);
+      },
+    });
+    api.registerTool({
+      name: "clawphylax_others",
+      description: "Has another agent or session on this machine already reached this host successfully? Finds recent successful requests from other sessions (tool, route, status, how long ago) so you can reuse their route or ask that session instead of fetching again.",
+      parameters: Type.Object({ host: Type.String(), path: Type.Optional(Type.String()), windowMinutes: Type.Optional(Type.Number()) }),
+      async execute(_id: string, p: { host: string; path?: string; windowMinutes?: number }) {
+        const r = othersSolved(core.ledger, p.host, { path: p.path, excludeSession: core.lastSessionKey, windowMinutes: p.windowMinutes });
+        return text(r.say, r);
+      },
+    });
+    api.registerTool({
+      name: "clawphylax_exploration",
+      description: "Do I know enough to act? Compares gathering calls (search, fetch, read) with acting calls (exec, write, message) in this session, counts distinct sources, and says whether you are acting blind, still exploring, or balanced.",
+      parameters: Type.Object({ sessionKey: Type.Optional(Type.String()) }),
+      async execute(_id: string, p: { sessionKey?: string }) {
+        const r = explorationCheck(core.ledger, { sessionKey: p?.sessionKey ?? core.lastSessionKey });
+        return text(`${r.verdict.toUpperCase()}: ${r.say}`, r);
+      },
+    });
+    api.registerTool({
+      name: "clawphylax_what_worked",
+      description: "What worked on this host, and how do I do it again? Ranks the tool, method and route combinations that succeeded on a host (with lower bounds and latency) and returns a recipe you can turn into a skill or a witness card.",
+      parameters: Type.Object({ host: Type.String() }),
+      async execute(_id: string, p: { host: string }) {
+        const r = whatWorked(core.ledger, p.host);
+        return text(r.markdown, r);
+      },
+    });
+    api.registerTool({
+      name: "clawphylax_cost",
+      description: "What has this cost so far? Token usage and provider cost from OpenClaw's own session transcripts: per session, per model, per tool call, over a time window. Use before deciding whether another attempt is worth it, or when the user asks why the bill is high.",
+      parameters: Type.Object({ windowMinutes: Type.Optional(Type.Number()), sessionId: Type.Optional(Type.String()) }),
+      async execute(_id: string, p: { windowMinutes?: number; sessionId?: string }) {
+        const r = costReport({ windowMinutes: p?.windowMinutes, sessionId: p?.sessionId });
+        return text(r.say, r);
+      },
+    });
+    api.registerTool({
+      name: "clawphylax_which_path",
+      description: "Which path is worth it? Given several research or action paths with what you know (successes, failures, prior, cost per attempt, value on success), computes for each the success probability with bounds, expected value per attempt, the safe value (lower bound) and the optimistic value (upper bound), and recommends exploit / explore / fold with a plan. Paths named by hostname pull their observed outcomes from the ledger automatically.",
+      parameters: Type.Object({
+        paths: Type.Array(
+          Type.Object({
+            name: Type.String(),
+            successes: Type.Optional(Type.Number()),
+            failures: Type.Optional(Type.Number()),
+            prior: Type.Optional(Type.Number()),
+            priorStrength: Type.Optional(Type.Number()),
+            costPerAttempt: Type.Optional(Type.Number()),
+            valueIfSuccess: Type.Optional(Type.Number()),
+          }),
+        ),
+        budget: Type.Optional(Type.Number()),
+      }),
+      async execute(_id: string, p: { paths: PathInput[]; budget?: number }) {
+        const r = whichPath(p.paths ?? [], { budget: p.budget, ledger: core.ledger });
+        return text(renderPaths(r), r);
+      },
+    });
+    api.registerTool({
+      name: "clawphylax_share",
+      description: "The ClawPhylax Data Pact: what opt-in sharing of request outcomes would send (six hashed fields), what contributors get back, and the rules. Shows the exact rows that would leave this machine. Nothing is uploaded in this version; the switch records consent only. Use when the user asks about data sharing or privacy.",
+      parameters: Type.Object({ action: Type.Optional(Type.String({ description: "status (default) | preview | on | off | pact" })) }),
+      async execute(_id: string, p: { action?: string }) {
+        const a = p?.action ?? "status";
+        if (a === "pact") return text(PACT_TEXT, { pact: PACT_TEXT });
+        if (a === "on" || a === "off") {
+          const c = setConsent(core.ledger, a === "on");
+          return text(`Sharing consent: ${c.on ? "ON (recorded " + c.since + ")" : "OFF"}. Nothing leaves this machine in this version.`, c);
+        }
+        const c = getConsent(core.ledger);
+        const rows = previewRows(core.ledger, 10);
+        return text(`consent: ${c.on ? "on since " + c.since : "off"} · nothing leaves this machine in this version.\nrows that would be shared (last ${rows.length}): ${JSON.stringify(rows)}`, { consent: c, rows });
+      },
+    });
     api.registerTool({
       name: "clawphylax_scan",
       description:
@@ -157,10 +280,13 @@ export default definePluginEntry({
       acceptsArgs: true,
       requireAuth: true,
       agentPromptGuidance: [
-        "Before installing any third-party skill, verify it first: run /phylax scan <folder> (or the clawphylax_scan tool) and report the hosts, uploads and credential-file reads it names. When asked where a skill sends data or why an unknown host was contacted, run /phylax hosts skill:<name> (or the clawphylax_hosts tool) and answer from the ledger. When a web request, API call or exec network command fails, run /phylax outlook <host> (or the clawphylax_outlook tool) before retrying: it says whether the host is blocking you, rate-limiting you, down, or whether the request itself is wrong, and how long to wait.",
+        "Before installing any third-party skill, verify it first: run /phylax scan <folder> (or the clawphylax_scan tool) and report the hosts, uploads and credential-file reads it names. When asked where a skill sends data or why an unknown host was contacted, run /phylax hosts skill:<name> (or the clawphylax_hosts tool) and answer from the ledger. When a web request, API call or exec network command fails, run /phylax outlook <host> (or the clawphylax_outlook tool) before retrying: it says whether the host is blocking you, rate-limiting you, down, or whether the request itself is wrong, and how long to wait. When errors pile up, /phylax failures groups them by cause; when a task drags on, /phylax stop says whether to continue, change approach, or stop and ask the user; /phylax circles tells you if you are repeating yourself; /phylax risk <host or command> checks before an action whether it could get the user banned or charged.",
       ],
       handler: async (ctx: any) => {
         try {
+          if (ctx?.sessionKey) {
+            core.lastSessionKey = ctx.sessionKey;
+          }
           const args = String(ctx?.args ?? "").trim();
           const [sub, ...rest] = args.split(/\s+/).filter(Boolean);
           const arg = rest.join(" ");
@@ -173,6 +299,52 @@ export default definePluginEntry({
           if (sub === "outlook" && arg) {
             return { text: renderOutlook(outlookFor(core.ledger, arg, 60)) };
           }
+          if (sub === "failures") {
+            const r = failureReport(core.ledger, { sessionKey: ctx?.sessionKey ?? core.lastSessionKey });
+            return { text: `${r.nextQuestion}\n${r.clusters.slice(0, 5).map((c) => `- ${c.tool}${c.host ? "@" + c.host : ""} "${c.signature}" ×${c.count}`).join("\n")}` };
+          }
+          if (sub === "stop") {
+            const r = stopOrContinue(core.ledger, { sessionKey: ctx?.sessionKey ?? core.lastSessionKey });
+            return { text: `${r.verdict.toUpperCase()}: ${r.say}` };
+          }
+          if (sub === "circles") {
+            const r = circlesCheck(core.ledger, { sessionKey: ctx?.sessionKey ?? core.lastSessionKey });
+            return { text: `${r.verdict.toUpperCase()}: ${r.say}` };
+          }
+          if (sub === "risk" && arg) {
+            const r = riskCheck(core.ledger, core.config, /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(arg) ? { host: arg } : { command: arg });
+            return { text: `${r.verdict.toUpperCase()}: ${r.say}` };
+          }
+          if (sub === "others" && arg) {
+            return { text: othersSolved(core.ledger, arg, { excludeSession: ctx?.sessionKey ?? core.lastSessionKey }).say };
+          }
+          if (sub === "explore") {
+            const r = explorationCheck(core.ledger, { sessionKey: ctx?.sessionKey ?? core.lastSessionKey });
+            return { text: `${r.verdict.toUpperCase()}: ${r.say}` };
+          }
+          if (sub === "worked" && arg) {
+            return { text: whatWorked(core.ledger, arg).markdown };
+          }
+          if (sub === "cost") {
+            return { text: costReport({ windowMinutes: arg ? Number(arg) : undefined }).say };
+          }
+          if (sub === "paths" && arg) {
+            try {
+              const parsed = JSON.parse(arg);
+              return { text: renderPaths(whichPath(Array.isArray(parsed) ? parsed : parsed.paths ?? [], { budget: parsed.budget, ledger: core.ledger })) };
+            } catch {
+              return { text: 'Usage: /phylax paths [{"name":"official-api","successes":3,"failures":1,"costPerAttempt":1,"valueIfSuccess":10}, ...]' };
+            }
+          }
+          if (sub === "share") {
+            if (arg === "pact") return { text: PACT_TEXT };
+            if (arg === "on" || arg === "off") {
+              const c = setConsent(core.ledger, arg === "on");
+              return { text: `Sharing consent: ${c.on ? "ON" : "OFF"}. Nothing leaves this machine in this version. /phylax share pact shows the rules.` };
+            }
+            const c = getConsent(core.ledger);
+            return { text: `Sharing consent: ${c.on ? "on since " + c.since : "off"} · nothing leaves this machine in this version.\nRows that would be shared: ${JSON.stringify(previewRows(core.ledger, 5))}\n/phylax share pact | on | off` };
+          }
           if (sub === "card" && arg) {
             return { text: renderCard(core.ledger, arg, "md") };
           }
@@ -184,7 +356,7 @@ export default definePluginEntry({
             }
             return { text: lines.join("\n") };
           }
-          return { text: "Usage: /phylax [report [24h]] | outlook <host> | scan <folder> | hosts <origin> | card <origin>" };
+          return { text: "Usage: /phylax [report [24h]] | outlook <host> | failures | stop | circles | explore | risk <host|command> | others <host> | worked <host> | cost [minutes] | paths <json> | scan <folder> | hosts <origin> | card <origin> | share [pact|on|off]" };
         } catch (err: any) {
           return { text: `ClawPhylax error: ${err?.message ?? err}` };
         }
@@ -230,9 +402,9 @@ export default definePluginEntry({
       return undefined;
     });
 
-    api.on("after_tool_call", (event: unknown) => {
+    api.on("after_tool_call", (event: unknown, ctx: unknown) => {
       try {
-        core.afterToolCall(toolEvent(event));
+        core.afterToolCall(toolEvent(event), hookCtx(ctx));
       } catch {
         /* never throw from an observer */
       }

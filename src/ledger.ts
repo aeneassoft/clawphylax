@@ -15,6 +15,20 @@ export type HostRow = {
   count: number;
 };
 
+export type ToolOutcome = {
+  ts: number;
+  runId?: string;
+  sessionKey?: string;
+  agentId?: string;
+  toolCallId?: string;
+  toolName: string;
+  ok: boolean;
+  errorText?: string;
+  durationMs?: number;
+  /** Short, redacted hint about the arguments (host, path or first words of a command). */
+  argHint?: string;
+};
+
 export type SkillSummary = {
   key: string;
   hosts: number;
@@ -89,6 +103,26 @@ export class Ledger {
         last_seen INTEGER NOT NULL,
         count INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (key, host)
+      );
+      CREATE TABLE IF NOT EXISTS tool_outcomes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts INTEGER NOT NULL,
+        run_id TEXT,
+        session_key TEXT,
+        agent_id TEXT,
+        tool_call_id TEXT,
+        tool_name TEXT NOT NULL,
+        ok INTEGER NOT NULL,
+        error_text TEXT,
+        duration_ms INTEGER,
+        arg_hint TEXT
+      );
+      CREATE INDEX IF NOT EXISTS outcomes_ts ON tool_outcomes(ts);
+      CREATE INDEX IF NOT EXISTS outcomes_session ON tool_outcomes(session_key);
+      CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
       );
       CREATE TABLE IF NOT EXISTS rules (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -178,6 +212,72 @@ export class Ledger {
     );
   }
 
+  recordToolOutcome(o: ToolOutcome): void {
+    this.db
+      .prepare(
+        "INSERT INTO tool_outcomes (ts, run_id, session_key, agent_id, tool_call_id, tool_name, ok, error_text, duration_ms, arg_hint) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+      .run(
+        o.ts,
+        o.runId ?? null,
+        o.sessionKey ?? null,
+        o.agentId ?? null,
+        o.toolCallId ?? null,
+        o.toolName,
+        o.ok ? 1 : 0,
+        o.errorText ? o.errorText.slice(0, 500) : null,
+        o.durationMs ?? null,
+        o.argHint ? o.argHint.slice(0, 200) : null,
+      );
+  }
+
+  toolOutcomes(opts: { sessionKey?: string; sinceTs?: number; limit?: number; onlyFailures?: boolean } = {}): ToolOutcome[] {
+    const where: string[] = ["ts >= ?"];
+    const args: any[] = [opts.sinceTs ?? 0];
+    if (opts.sessionKey) {
+      where.push("session_key = ?");
+      args.push(opts.sessionKey);
+    }
+    if (opts.onlyFailures) {
+      where.push("ok = 0");
+    }
+    args.push(opts.limit ?? 500);
+    const rows = this.db.prepare("SELECT * FROM tool_outcomes WHERE " + where.join(" AND ") + " ORDER BY ts DESC LIMIT ?").all(...args) as any[];
+    return rows.map((r) => ({
+      ts: r.ts,
+      runId: r.run_id ?? undefined,
+      sessionKey: r.session_key ?? undefined,
+      agentId: r.agent_id ?? undefined,
+      toolCallId: r.tool_call_id ?? undefined,
+      toolName: r.tool_name,
+      ok: r.ok === 1,
+      errorText: r.error_text ?? undefined,
+      durationMs: r.duration_ms ?? undefined,
+      argHint: r.arg_hint ?? undefined,
+    }));
+  }
+
+  eventsForSession(sessionKey: string, sinceTs = 0, limit = 1000): EgressEvent[] {
+    return (this.db.prepare("SELECT * FROM events WHERE session_key = ? AND ts >= ? ORDER BY ts DESC LIMIT ?").all(sessionKey, sinceTs, limit) as any[]).map(rowToEvent);
+  }
+
+  /** Most recently active session keys (from events and tool outcomes). */
+  recentSessions(limit = 10): Array<{ sessionKey: string; lastSeen: number }> {
+    return this.db
+      .prepare(
+        "SELECT session_key AS sessionKey, MAX(ts) AS lastSeen FROM (SELECT session_key, ts FROM events WHERE session_key IS NOT NULL UNION ALL SELECT session_key, ts FROM tool_outcomes WHERE session_key IS NOT NULL) GROUP BY session_key ORDER BY lastSeen DESC LIMIT ?",
+      )
+      .all(limit) as any[];
+  }
+
+  /** Events for a host from sessions other than the given one. */
+  eventsForHostFromOtherSessions(host: string, excludeSession: string | undefined, sinceTs = 0, limit = 50): EgressEvent[] {
+    const rows = excludeSession
+      ? this.db.prepare("SELECT * FROM events WHERE host = ? AND ts >= ? AND (session_key IS NULL OR session_key != ?) ORDER BY ts DESC LIMIT ?").all(host, sinceTs, excludeSession, limit)
+      : this.db.prepare("SELECT * FROM events WHERE host = ? AND ts >= ? ORDER BY ts DESC LIMIT ?").all(host, sinceTs, limit);
+    return (rows as any[]).map(rowToEvent);
+  }
+
   eventsForHost(host: string, sinceTs = 0, limit = 500): EgressEvent[] {
     return (
       this.db
@@ -220,6 +320,15 @@ export class Ledger {
       .all(scope, host, host) as Array<{ decision: string }>;
     const d = rows[0]?.decision;
     return d === "allow" || d === "deny" ? d : undefined;
+  }
+
+  getSetting(key: string): string | undefined {
+    const r = this.db.prepare("SELECT value FROM settings WHERE key = ?").get(key) as { value: string } | undefined;
+    return r?.value;
+  }
+
+  setSetting(key: string, value: string): void {
+    this.db.prepare("INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at").run(key, value, Date.now());
   }
 
   counts(): { events: number; hosts: number; keys: number } {

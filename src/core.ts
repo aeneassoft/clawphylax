@@ -18,6 +18,10 @@ export type ToolCallEvent = {
   params?: unknown;
   toolCallId?: string;
   runId?: string;
+  /** after_tool_call only, read defensively from the host event */
+  error?: string;
+  ok?: boolean;
+  durationMs?: number;
 };
 
 export type HookContext = {
@@ -43,6 +47,29 @@ export function sharedCore(cfg: PluginConfig, ledgerFactory: () => Ledger, log: 
     core.setConfig(cfg);
   }
   return core;
+}
+
+/** A short, non-sensitive hint about a tool call's arguments for the outcome log. */
+export function argHint(toolName: string, params: unknown): string | undefined {
+  if (!params || typeof params !== "object") {
+    return undefined;
+  }
+  const p = params as Record<string, unknown>;
+  const url = typeof p.url === "string" ? p.url : undefined;
+  if (url) {
+    try {
+      const u = new URL(url);
+      return (u.hostname + u.pathname).slice(0, 120);
+    } catch {
+      return url.slice(0, 120);
+    }
+  }
+  const cmd = extractCommand(params);
+  if (cmd) {
+    return cmd.replace(/\s+/g, " ").slice(0, 80);
+  }
+  const q = typeof p.query === "string" ? p.query : typeof p.path === "string" ? p.path : undefined;
+  return q ? toolName + ":" + q.slice(0, 100) : undefined;
 }
 
 export class Core {
@@ -193,6 +220,9 @@ export class Core {
    */
   beforeToolCall(event: ToolCallEvent, ctx: HookContext): { block: boolean; reason?: string } {
     this.arm(); // a tool call is proof that this process runs an agent
+    if (ctx.sessionKey) {
+      this.lastSessionKey = ctx.sessionKey;
+    }
     const toolName = event.toolName ?? "unknown";
     const runId = event.runId ?? ctx.runId;
     const command = toolName === "exec" || toolName === "bash" ? extractCommand(event.params) : undefined;
@@ -262,8 +292,33 @@ export class Core {
     return { block, reason };
   }
 
-  afterToolCall(event: ToolCallEvent): void {
-    closeToolCall(event.toolCallId);
+  /** Session key of the most recent tool call; lets tools default to the current conversation. */
+  lastSessionKey: string | undefined;
+
+  afterToolCall(event: ToolCallEvent, ctx: HookContext = {}): void {
+    const open = closeToolCall(event.toolCallId);
+    const sessionKey = ctx.sessionKey ?? open?.sessionKey;
+    if (sessionKey) {
+      this.lastSessionKey = sessionKey;
+    }
+    try {
+      const toolName = event.toolName ?? open?.toolName ?? "unknown";
+      const ok = event.ok ?? !event.error;
+      this.ledger.recordToolOutcome({
+        ts: Date.now(),
+        runId: event.runId ?? ctx.runId ?? open?.runId,
+        sessionKey,
+        agentId: ctx.agentId ?? open?.agentId,
+        toolCallId: event.toolCallId ?? open?.toolCallId,
+        toolName,
+        ok,
+        errorText: event.error,
+        durationMs: event.durationMs ?? (open ? Date.now() - open.startedAt : undefined),
+        argHint: argHint(toolName, event.params),
+      });
+    } catch (err: any) {
+      this.log.warn("tool outcome not recorded: " + (err?.message ?? err));
+    }
   }
 
   /** Footer for the reply of this run, if anything is worth a look. Consumes the run buffer. */
