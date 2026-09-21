@@ -1,51 +1,56 @@
 ---
-name: do-i-know-enough-to-act
-description: "Do I know enough to act? Am I acting blind, or exploring forever? Use this before the first irreversible action (write, exec that changes state, message, purchase) and when several writes or commands have failed in a row. Compares gathering calls (web_search, web_fetch, read, memory) with acting calls (exec, write, edit, message) in this session and counts distinct sources. Returns exactly ACT_NOW, GATHER_FIRST or BALANCED with the one call to make next. Do not use for pure research tasks with no action planned."
+name: did-my-message-go-out
+description: "Did my message actually go out? Was it delivered, or did the send only look successful? Use this after any message send whose delivery matters — a notification, a reply the user is waiting for, a forward to another chat — and before telling the user it was sent. Cross-checks the runtime's send result (message_sent success/error) against the wire: the request this process made to the channel API (api.telegram.org, discord.com, slack.com, graph.facebook.com, api.twilio.com, graph.microsoft.com) and its status code. Returns exactly DELIVERED, NOT_DELIVERED, CLAIMED_ONLY, CANCELLED, PENDING or NO_SEND. Do not use to confirm channels that deliver outside this process (WhatsApp Web, Signal, iMessage); for those it tells you the wire cannot confirm and what to do instead."
 homepage: https://github.com/aeneassoft/clawphylax
 license: MIT
 metadata:
   { "openclaw": { "requires": { "plugins": ["clawphylax"] } } }
 ---
 
-# Do I know enough to act?
+# Did my message actually go out?
 
-Two failure modes: acting before reading (failed writes, wrong commands),
-and reading forever (no result). Both are visible in the call mix.
+The message tool returns. The runtime says success. Those are two claims from
+the same side. The channel API's answer on the wire is the other side. This
+skill compares them for one send.
 
-## Steps
+## Procedure
 
 1. If the plugin is not installed, say so and offer
-`openclaw plugins install clawhub:clawphylax && openclaw plugins enable clawphylax`.
-Check with `openclaw clawphylax status`.
-2. Ask — the `clawphylax_exploration` tool, `/phylax explore`, or:
+   `openclaw plugins install clawhub:clawphylax && openclaw plugins enable clawphylax`.
+2. Right after the send, call the `clawphylax_sent` tool (defaults to the
+   latest send of this session), or `/phylax sent`, or:
 
    ```bash
-   openclaw clawphylax explore
+   openclaw clawphylax sent
    ```
 
-3. Act:
-   - **acting-blind** — stop acting. Fetch the documentation or the target
-     once, read the error texts you already have, then act.
-   - **still-exploring** — you have enough. State the one concrete step the
-     evidence supports and do it.
-   - **balanced** — continue.
+3. Act on the verdict:
+   - **DELIVERED** — runtime success and a 2xx from the channel API agree. Say it was sent.
+   - **NOT_DELIVERED** — the runtime reported an error, or the channel API answered 4xx/5xx
+     behind a "success". Do not say it was sent. Run `why-did-my-request-fail` for the host.
+   - **CLAIMED_ONLY** — success reported, no channel request seen. Either the channel delivers
+     outside this process (WhatsApp Web, Signal, iMessage) or nothing left. Verify on the
+     receiving side before you vouch for it.
+   - **CANCELLED** — a hook cancelled the send (for example a secret-shaped value in enforce
+     mode). Nothing went out.
+   - **PENDING** — no completion recorded yet. Re-check in a few seconds.
 
-## Limits
+## Rules
 
-The classification of tools into gathering and acting is a fixed list;
-plugin tools not on it are counted as neither.
+- Never report "sent" on anything but DELIVERED, or after you verified the receiving side.
+- One check per send that matters.
 
 ## Use this when
 
-Before the first irreversible action; after two failed writes or commands; when a task has produced many reads and no result.
+After a send whose delivery matters; before saying "sent" to the user; when a channel has been flaky; after a message tool returned ok suspiciously fast.
 
 ## Do not use when
 
-Pure research with no action planned; trivial single-step tasks.
+Sends you do not need to vouch for; channels without an HTTPS API from this process (the verdict will be CLAIMED_ONLY by design).
 
 ## Output
 
-First line `ACTION: ACT_NOW` / `ACTION: GATHER_FIRST` / `ACTION: BALANCED`, then EVIDENCE (gather vs act counts, distinct sources, failures after first act), NEXT (the single call).
+First line `ACTION: REPORT_AS_SENT` / `ACTION: DO_NOT_REPORT_AS_SENT` / `ACTION: VERIFY_ON_RECEIVING_SIDE` / `ACTION: SEND_FIRST`, then EVIDENCE (runtime result; channel API request and status), DO NOT, NEXT, SCOPE. Never tell the user a message was sent on CLAIMED_ONLY, PENDING, NOT_DELIVERED or CANCELLED.
 
 ## For agents
 

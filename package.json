@@ -1,6 +1,6 @@
 {
   "name": "clawphylax",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Skill safety and agent self-diagnostics for OpenClaw: verify skills before install, see where installed skills send data, and let the agent ask itself the troubleshooting questions — will this request work, why do I keep failing, should I stop and ask, am I going in circles, could this get the user banned, what has this cost, which path is worth it. Local ledger, no cloud, observe-only by default.",
   "type": "module",
   "license": "MIT",

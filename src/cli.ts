@@ -1,5 +1,6 @@
 // `openclaw clawphylax …` — reads the ledger; does not need the Gateway.
 
+import { compactionBrief, didMessageGoOut, reconcile, renderClaims, sendCheck, taskMatch } from "./messaging.js";
 import { Ledger, defaultLedgerPath } from "./ledger.js";
 import { costReport } from "./cost.js";
 import { renderTokenUse, tokenUse } from "./tokens.js";
@@ -177,6 +178,16 @@ export function registerCli(program: Command, out: (s: string) => void = (s) => 
 
   root.command("check").description("Did that actually work? Cross-check the last tool call's report against the wire").argument("[toolCallId]").option("--session <key>").option("--json").option("--db <path>").action((id: string | undefined, o: Record<string, unknown>) =>
     withLedger(o, (l) => { const r = didItWork(l, { toolCallId: id, sessionKey: o.session as string | undefined }); return J(o, r, `${r.verdict}: ${r.say}`); }));
+  root.command("send").description("Is this safe to send? Check a target and text before sending").argument("<to>").argument("<text...>").option("--session <key>").option("--json").option("--db <path>").action((to: string, words: string[], o: Record<string, unknown>) =>
+    withLedger(o, (l) => { const r = sendCheck(l, { to, content: words.join(" "), sessionKey: o.session as string | undefined }); return J(o, r, `${r.verdict}: ${r.say}`); }));
+  root.command("sent").description("Did my message actually go out? Runtime result cross-checked against the channel API on the wire").argument("[sendId]").option("--session <key>").option("--json").option("--db <path>").action((id: string | undefined, o: Record<string, unknown>) =>
+    withLedger(o, (l) => { const r = didMessageGoOut(l, { sendId: id ? Number(id) : undefined, sessionKey: o.session as string | undefined }); return J(o, r, `${r.verdict}: ${r.say}`); }));
+  root.command("brief").description("What did I lose in compaction? Rebuild what happened before the cut, with a MUST NOT FORGET list").option("--session <key>").option("--window <minutes>", "look-back", "1440").option("--json").option("--db <path>").action((o: Record<string, unknown>) =>
+    withLedger(o, (l) => { const r = compactionBrief(l, { sessionKey: o.session as string | undefined, windowMinutes: Number(o.window ?? 1440) }); return J(o, r, `${r.say}${r.mustNotForget.length ? "\n\nMUST NOT FORGET:\n- " + r.mustNotForget.join("\n- ") : ""}`); }));
+  root.command("match").description("Did I do what was asked? Request vs reply vs the actions in between").option("--session <key>").option("--json").option("--db <path>").action((o: Record<string, unknown>) =>
+    withLedger(o, (l) => { const r = taskMatch(l, { sessionKey: o.session as string | undefined }); return J(o, r, `${r.verdict}: ${r.say}`); }));
+  root.command("reconcile").description("What do I believe I did vs what the record shows? Transcript claims checked against the ledger").option("--session <key>").option("--transcript <sessionId>").option("--json").option("--db <path>").action((o: Record<string, unknown>) =>
+    withLedger(o, (l) => { const r = reconcile(l, { sessionKey: o.session as string | undefined, sessionId: o.transcript as string | undefined }); return J(o, r, `${r.verdict}: ${r.say}${r.claims.length ? "\n\n" + renderClaims(r) : ""}`); }));
   root.command("failures").description("Why do I keep failing? Cluster this session's failures by cause").option("--session <key>").option("--window <minutes>", "look-back", "120").option("--json").option("--db <path>").action((o: Record<string, unknown>) =>
     withLedger(o, (l) => { const r = failureReport(l, { sessionKey: o.session as string | undefined, windowMinutes: Number(o.window ?? 120) }); return J(o, r, `${r.nextQuestion}\n${r.clusters.slice(0, 8).map((x) => `- ${x.tool}${x.host ? "@" + x.host : ""} "${x.signature}" ×${x.count} (${Math.round(x.share * 100)}%)`).join("\n")}`); }));
   root.command("stop").description("Should I stop and ask? Stopping rule for the current session").option("--session <key>").option("--json").option("--db <path>").action((o: Record<string, unknown>) =>

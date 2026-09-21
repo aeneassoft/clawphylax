@@ -39,6 +39,48 @@ export type SkillSummary = {
   last_seen: number;
 };
 
+export type OutboundRow = {
+  id: number;
+  ts: number;
+  runId?: string;
+  sessionKey?: string;
+  channelId?: string;
+  conversationId?: string;
+  to: string;
+  len: number;
+  keywords?: string[];
+  secretKinds?: string[];
+  cancelled: boolean;
+  sentTs?: number;
+  success?: boolean;
+  error?: string;
+  messageId?: string;
+};
+
+export type InboundRow = { ts: number; sessionKey?: string; channelId?: string; conversationId?: string; from?: string; len: number; keywords?: string[]; asks?: string[] };
+
+export type CompactionRow = { ts: number; sessionKey?: string; phase: "before" | "after"; messageCount?: number; compactedCount?: number; tokenCount?: number };
+
+function rowToOutbound(r: any): OutboundRow {
+  return {
+    id: r.id,
+    ts: r.ts,
+    runId: r.run_id ?? undefined,
+    sessionKey: r.session_key ?? undefined,
+    channelId: r.channel_id ?? undefined,
+    conversationId: r.conversation_id ?? undefined,
+    to: r.to_target ?? "",
+    len: r.content_len ?? 0,
+    keywords: r.keywords ? String(r.keywords).split(" ").filter(Boolean) : undefined,
+    secretKinds: r.secret_kinds ? String(r.secret_kinds).split(",").filter(Boolean) : undefined,
+    cancelled: !!r.cancelled,
+    sentTs: r.sent_ts ?? undefined,
+    success: r.success === null || r.success === undefined ? undefined : !!r.success,
+    error: r.error ?? undefined,
+    messageId: r.message_id ?? undefined,
+  };
+}
+
 export function defaultLedgerPath(): string {
   const stateDir = process.env.OPENCLAW_STATE_DIR?.trim() || path.join(os.homedir(), ".openclaw");
   return path.join(stateDir, "clawphylax", "ledger.sqlite");
@@ -123,6 +165,45 @@ export class Ledger {
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL,
         updated_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS inbound (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts INTEGER NOT NULL,
+        session_key TEXT,
+        channel_id TEXT,
+        conversation_id TEXT,
+        from_id TEXT,
+        content_len INTEGER NOT NULL DEFAULT 0,
+        keywords TEXT,
+        asks TEXT
+      );
+      CREATE INDEX IF NOT EXISTS inbound_session ON inbound(session_key, ts);
+      CREATE TABLE IF NOT EXISTS outbound (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts INTEGER NOT NULL,
+        run_id TEXT,
+        session_key TEXT,
+        channel_id TEXT,
+        conversation_id TEXT,
+        to_target TEXT NOT NULL,
+        content_len INTEGER NOT NULL DEFAULT 0,
+        keywords TEXT,
+        secret_kinds TEXT,
+        cancelled INTEGER NOT NULL DEFAULT 0,
+        sent_ts INTEGER,
+        success INTEGER,
+        error TEXT,
+        message_id TEXT
+      );
+      CREATE INDEX IF NOT EXISTS outbound_session ON outbound(session_key, ts);
+      CREATE TABLE IF NOT EXISTS compactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts INTEGER NOT NULL,
+        session_key TEXT,
+        phase TEXT NOT NULL,
+        message_count INTEGER,
+        compacted_count INTEGER,
+        token_count INTEGER
       );
       CREATE TABLE IF NOT EXISTS rules (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -324,6 +405,66 @@ export class Ledger {
       .all(scope, host, host) as Array<{ decision: string }>;
     const d = rows[0]?.decision;
     return d === "allow" || d === "deny" ? d : undefined;
+  }
+
+  // ------------------------------------------------------------ messaging
+
+  recordInbound(r: InboundRow): void {
+    this.db
+      .prepare("INSERT INTO inbound (ts, session_key, channel_id, conversation_id, from_id, content_len, keywords, asks) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+      .run(r.ts, r.sessionKey ?? null, r.channelId ?? null, r.conversationId ?? null, r.from ? r.from.slice(0, 120) : null, r.len, r.keywords?.join(" ") ?? null, r.asks?.join(",") ?? null);
+  }
+
+  /** The conversation this session is replying in: its latest inbound message. */
+  originFor(sessionKey: string): InboundRow | undefined {
+    const r = this.db.prepare("SELECT * FROM inbound WHERE session_key = ? ORDER BY ts DESC LIMIT 1").get(sessionKey) as any;
+    if (!r) return undefined;
+    return { ts: r.ts, sessionKey: r.session_key ?? undefined, channelId: r.channel_id ?? undefined, conversationId: r.conversation_id ?? undefined, from: r.from_id ?? undefined, len: r.content_len ?? 0, keywords: r.keywords ? String(r.keywords).split(" ").filter(Boolean) : [], asks: r.asks ? String(r.asks).split(",").filter(Boolean) : [] };
+  }
+
+  recordOutbound(o: Omit<OutboundRow, "id">): number {
+    const res = this.db
+      .prepare("INSERT INTO outbound (ts, run_id, session_key, channel_id, conversation_id, to_target, content_len, keywords, secret_kinds, cancelled, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .run(o.ts, o.runId ?? null, o.sessionKey ?? null, o.channelId ?? null, o.conversationId ?? null, o.to.slice(0, 200), o.len, o.keywords?.join(" ") ?? null, o.secretKinds?.join(",") ?? null, o.cancelled ? 1 : 0, o.error ?? null);
+    return Number(res.lastInsertRowid);
+  }
+
+  /** Completion of a send (message_sent): matched to the latest open outbound with the same target. */
+  markSent(s: { ts: number; sessionKey?: string; to: string; success: boolean; error?: string; messageId?: string }): boolean {
+    const row = this.db
+      .prepare("SELECT id FROM outbound WHERE to_target = ? AND sent_ts IS NULL AND ts >= ? " + (s.sessionKey ? "AND (session_key = ? OR session_key IS NULL) " : "") + "ORDER BY ts DESC LIMIT 1")
+      .get(...(s.sessionKey ? [s.to.slice(0, 200), s.ts - 10 * 60_000, s.sessionKey] : [s.to.slice(0, 200), s.ts - 10 * 60_000])) as { id: number } | undefined;
+    if (!row) return false;
+    this.db.prepare("UPDATE outbound SET sent_ts = ?, success = ?, error = COALESCE(?, error), message_id = ? WHERE id = ?").run(s.ts, s.success ? 1 : 0, s.error ? s.error.slice(0, 300) : null, s.messageId ?? null, row.id);
+    return true;
+  }
+
+  outbound(id: number): OutboundRow | undefined {
+    const r = this.db.prepare("SELECT * FROM outbound WHERE id = ?").get(id) as any;
+    return r ? rowToOutbound(r) : undefined;
+  }
+
+  outbounds(opts: { sessionKey?: string; sinceTs?: number; limit?: number } = {}): OutboundRow[] {
+    const where: string[] = ["ts >= ?"];
+    const args: any[] = [opts.sinceTs ?? 0];
+    if (opts.sessionKey) {
+      where.push("session_key = ?");
+      args.push(opts.sessionKey);
+    }
+    args.push(opts.limit ?? 50);
+    return (this.db.prepare(`SELECT * FROM outbound WHERE ${where.join(" AND ")} ORDER BY ts DESC LIMIT ?`).all(...args) as any[]).map(rowToOutbound);
+  }
+
+  recordCompaction(c: CompactionRow): void {
+    this.db.prepare("INSERT INTO compactions (ts, session_key, phase, message_count, compacted_count, token_count) VALUES (?, ?, ?, ?, ?, ?)").run(c.ts, c.sessionKey ?? null, c.phase, c.messageCount ?? null, c.compactedCount ?? null, c.tokenCount ?? null);
+  }
+
+  compactions(sessionKey: string, limit = 20): CompactionRow[] {
+    return (this.db.prepare("SELECT * FROM compactions WHERE session_key = ? ORDER BY ts DESC LIMIT ?").all(sessionKey, limit) as any[]).map((r) => ({ ts: r.ts, sessionKey: r.session_key ?? undefined, phase: r.phase, messageCount: r.message_count ?? undefined, compactedCount: r.compacted_count ?? undefined, tokenCount: r.token_count ?? undefined }));
+  }
+
+  eventsBetween(fromTs: number, toTs: number, limit = 2000): EgressEvent[] {
+    return (this.db.prepare("SELECT * FROM events WHERE ts >= ? AND ts <= ? ORDER BY ts LIMIT ?").all(fromTs, toTs, limit) as any[]).map(rowToEvent);
   }
 
   getSetting(key: string): string | undefined {

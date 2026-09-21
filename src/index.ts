@@ -16,6 +16,7 @@ import { costReport } from "./cost.js";
 import { renderTokenUse, tokenUse } from "./tokens.js";
 import { circlesCheck, didItWork, explorationCheck, failureReport, othersSolved, riskCheck, stopOrContinue, whatWorked } from "./diagnostics.js";
 import { renderRecord, SCOPE_LOCAL } from "./record.js";
+import { compactionBrief, didMessageGoOut, reconcile, renderClaims, sendCheck, taskMatch } from "./messaging.js";
 import { outlookFor, renderOutlook } from "./outlook.js";
 import { renderPaths, whichPath, type PathInput } from "./paths.js";
 import { getConsent, PACT_TEXT, previewRows, setConsent } from "./share.js";
@@ -42,6 +43,11 @@ function toolEvent(e: unknown): ToolCallEvent {
     ok: typeof r.ok === "boolean" ? r.ok : typeof r.success === "boolean" ? r.success : typeof r.isError === "boolean" ? !r.isError : undefined,
     durationMs: typeof r.durationMs === "number" ? r.durationMs : typeof r.duration === "number" ? r.duration : undefined,
   };
+}
+
+function msgCtx(c: unknown): { channelId?: string; conversationId?: string; accountId?: string } {
+  const o = (c && typeof c === "object" ? c : {}) as Record<string, unknown>;
+  return { channelId: str(o.channelId), conversationId: str(o.conversationId), accountId: str(o.accountId) };
 }
 
 function hookCtx(c: unknown): HookContext {
@@ -161,6 +167,101 @@ export default definePluginEntry({
             next: r.say,
             scope: SCOPE_LOCAL,
           }),
+          r,
+        );
+      },
+    });
+    api.registerTool({
+      name: "clawphylax_send_check",
+      description:
+        "Is this safe to send? Use this before sending a message to any target other than the conversation you are replying in, before forwarding content, and whenever the text could contain a credential. Checks the target against this session's origin conversation and earlier sends, and scans the text for secret-shaped values (API keys, tokens, private keys) and credential file paths. Returns exactly SEND, CONFIRM_WITH_USER or DO_NOT_SEND with reasons. Do not use for a plain reply in the same conversation with no sensitive content.",
+      parameters: Type.Object({ to: Type.String({ description: "Target as the message tool would receive it (chat id, channel, user)." }), content: Type.String(), sessionKey: Type.Optional(Type.String()) }),
+      async execute(_id: string, p: { to: string; content: string; sessionKey?: string }) {
+        const r = sendCheck(core.ledger, { to: p.to, content: p.content, sessionKey: p?.sessionKey ?? core.lastSessionKey });
+        return text(
+          renderRecord({
+            action: r.verdict,
+            evidence: r.reasons.length ? r.reasons.join("; ") : `same conversation, no secret-shaped values, target seen before`,
+            doNot: r.verdict === "DO_NOT_SEND" ? "send the text as it is" : r.verdict === "CONFIRM_WITH_USER" ? "send before the user has confirmed target and content" : undefined,
+            next: r.say,
+            scope: "this session's record on this machine; a target the user named explicitly in this conversation counts as confirmed",
+          }),
+          r,
+        );
+      },
+    });
+    api.registerTool({
+      name: "clawphylax_sent",
+      description:
+        "Did my message actually go out? Use this after any message send whose delivery matters — a notification, a reply the user is waiting for, a forward — and before telling the user it was sent. Cross-checks the runtime's send result (message_sent success/error) against the wire: the request this process made to the channel API (Telegram, Discord, Slack, WhatsApp Cloud, Twilio, Teams…) and its status code. Returns exactly DELIVERED, NOT_DELIVERED, CLAIMED_ONLY, CANCELLED, PENDING or NO_SEND. Do not use for channels that deliver outside this process (WhatsApp Web, Signal, iMessage) except to learn that the wire cannot confirm them.",
+      parameters: Type.Object({ sendId: Type.Optional(Type.Number({ description: "Outbound record id; defaults to the latest send of this session." })), sessionKey: Type.Optional(Type.String()) }),
+      async execute(_id: string, p: { sendId?: number; sessionKey?: string }) {
+        const r = didMessageGoOut(core.ledger, { sendId: p?.sendId, sessionKey: p?.sessionKey ?? core.lastSessionKey });
+        return text(
+          renderRecord({
+            action: r.verdict === "DELIVERED" ? "REPORT_AS_SENT" : r.verdict === "CLAIMED_ONLY" || r.verdict === "PENDING" ? "VERIFY_ON_RECEIVING_SIDE" : r.verdict === "NO_SEND" ? "SEND_FIRST" : "DO_NOT_REPORT_AS_SENT",
+            evidence: `runtime: ${r.send ? (r.send.cancelled ? "cancelled" : r.send.success === undefined ? "no completion yet" : r.send.success ? "success" : `failed${r.send.error ? " (" + r.send.error.slice(0, 80) + ")" : ""}`) : "no send"}; wire: ${r.wire.length ? r.wire.map((w) => `${w.method} ${w.host} → ${w.status ?? "no response"}`).join(", ") : "no channel API request observed"}`,
+            doNot: r.verdict === "DELIVERED" ? undefined : "tell the user the message was sent",
+            next: r.say,
+            scope: SCOPE_LOCAL,
+          }),
+          r,
+        );
+      },
+    });
+    api.registerTool({
+      name: "clawphylax_compaction_brief",
+      description:
+        "What did I lose in context compaction that I must not forget? Use this right after a compaction notice, at the start of a resumed session, and whenever you suspect an earlier result is missing from your context. Rebuilds from the local ledger what happened before the compaction: hosts contacted, what is blocked or rate-limited for you, failed actions, silent failures, undelivered messages, routes that worked, and the last actions before the cut. Returns a MUST NOT FORGET list. Do not use as a general summary of a short session that was never compacted.",
+      parameters: Type.Object({ sessionKey: Type.Optional(Type.String()), windowMinutes: Type.Optional(Type.Number()) }),
+      async execute(_id: string, p: { sessionKey?: string; windowMinutes?: number }) {
+        const r = compactionBrief(core.ledger, { sessionKey: p?.sessionKey ?? core.lastSessionKey, windowMinutes: p?.windowMinutes });
+        return text(
+          renderRecord({
+            action: r.mustNotForget.length ? "CARRY_FORWARD" : "CONTINUE",
+            evidence: `${r.compactedAt ? `compacted at ${new Date(r.compactedAt).toISOString().slice(11, 19)}` : "no compaction recorded"}; ${r.hostsContacted.length} hosts, ${r.failedTools.length} failed actions, ${r.silentFailures.length} silent failures, ${r.undelivered.length} unconfirmed sends, ${r.workingRoutes.length} working routes`,
+            doNot: r.mustNotForget.length ? "repeat a blocked host or a failed action unchanged" : undefined,
+            next: r.mustNotForget.length ? `MUST NOT FORGET: ${r.mustNotForget.join(" | ")}` : r.say,
+            scope: SCOPE_LOCAL,
+          }),
+          r,
+        );
+      },
+    });
+    api.registerTool({
+      name: "clawphylax_task_match",
+      description:
+        "Did I do what was asked? Does my reply match the request, and did the processing in between make sense? Use this after replying to a message, before marking a task handled, and when a heartbeat or cron turn produced a lot of activity for a small message. Compares the inbound request (keyword fingerprint, requested actions) with the reply that went out (keyword fingerprint, delivery) and the actions actually taken between them (tool calls, hosts, failures, seconds). Returns exactly COHERENT, PARTIAL, INCOHERENT or NO_PAIR with reasons. No model is consulted; texts are not stored.",
+      parameters: Type.Object({ sessionKey: Type.Optional(Type.String()) }),
+      async execute(_id: string, p: { sessionKey?: string }) {
+        const r = taskMatch(core.ledger, { sessionKey: p?.sessionKey ?? core.lastSessionKey });
+        return text(
+          renderRecord({
+            action: r.verdict === "COHERENT" ? "TURN_HANDLED" : r.verdict === "PARTIAL" ? "ANSWER_THE_MISSING_PART" : r.verdict === "INCOHERENT" ? "REDO_THE_TURN" : "NONE",
+            evidence: r.inbound ? `request ${r.inbound.len} chars asking to ${r.inbound.asks.join("/") || "(nothing specific)"}; reply ${r.outbound?.len} chars, ${Math.round(r.overlap * 100)}% key-term overlap; ${r.toolCalls} tool calls (${r.failedCalls} failed) over ${r.seconds} s${r.hosts.length ? " via " + r.hosts.slice(0, 3).join(", ") : ""}; delivery ${r.outbound?.delivery}` : r.say,
+            doNot: r.verdict === "INCOHERENT" ? "mark this turn as handled" : undefined,
+            next: r.say,
+            scope: "keyword-level comparison on this machine; it cannot judge tone or correctness of facts",
+          }),
+          r,
+        );
+      },
+    });
+    api.registerTool({
+      name: "clawphylax_reconcile",
+      description:
+        "What do I believe I did, and what did I actually do? Use this before reporting a task as done, after a long session, and whenever you are about to say 'sent', 'published', 'fixed' or 'verified'. Reads your own transcript for success claims and checks each against the record: tool outcomes, outbound sends and their delivery, POST/PUT status codes on the wire. Lists claims as SUPPORTED, UNSUPPORTED or CONTRADICTED and names failed actions you never mentioned. Returns exactly RECORD_MATCHES_CLAIMS, CLAIMS_EXCEED_RECORD, RECORD_EXCEEDS_CLAIMS or NO_CLAIMS. Do not use before any action has been taken.",
+      parameters: Type.Object({ sessionKey: Type.Optional(Type.String()), sessionId: Type.Optional(Type.String({ description: "Transcript session id; defaults to the most recently modified transcript." })) }),
+      async execute(_id: string, p: { sessionKey?: string; sessionId?: string }) {
+        const r = reconcile(core.ledger, { sessionKey: p?.sessionKey ?? core.lastSessionKey, sessionId: p?.sessionId });
+        return text(
+          renderRecord({
+            action: r.verdict === "RECORD_MATCHES_CLAIMS" ? "REPORT_AS_IS" : r.verdict === "CLAIMS_EXCEED_RECORD" ? "CORRECT_WHAT_YOU_SAID" : r.verdict === "RECORD_EXCEEDS_CLAIMS" ? "MENTION_THE_FAILURES" : "NONE",
+            evidence: `${r.claims.length} claims: ${r.claims.length - r.unsupported - r.contradicted} supported, ${r.unsupported} unsupported, ${r.contradicted} contradicted; ${r.unmentionedFailures.length} unmentioned failures${r.transcript ? "" : "; no transcript"}`,
+            doNot: r.verdict === "CLAIMS_EXCEED_RECORD" ? "repeat a claim marked CONTRADICTED or UNSUPPORTED" : undefined,
+            next: r.say,
+            scope: SCOPE_LOCAL,
+          }) + (r.claims.length ? "\n\n" + renderClaims(r) : ""),
           r,
         );
       },
@@ -329,7 +430,7 @@ export default definePluginEntry({
       acceptsArgs: true,
       requireAuth: true,
       agentPromptGuidance: [
-        "Before installing any third-party skill, run clawphylax_scan on it; before retrying a failed request, run clawphylax_outlook on the host; when a task repeats, stalls, or produces no new evidence, run clawphylax_stop_or_continue; after any action whose effect matters, run clawphylax_did_it_work before building on the result. Before any action that could expose data, incur cost, change external state, or risk an account restriction, run clawphylax_risk_check; follow the returned ACTION and do not repeat an approach it prohibits.",
+        "Before installing any third-party skill, run clawphylax_scan on it; before retrying a failed request, run clawphylax_outlook on the host; when a task repeats, stalls, or produces no new evidence, run clawphylax_stop_or_continue; after any action whose effect matters, run clawphylax_did_it_work before building on the result; before sending to a target other than the conversation you are replying in, run clawphylax_send_check; after a send whose delivery matters, run clawphylax_sent before saying it was sent; after a context compaction, run clawphylax_compaction_brief before continuing; before reporting a task as done, run clawphylax_reconcile and clawphylax_task_match. Before any action that could expose data, incur cost, change external state, or risk an account restriction, run clawphylax_risk_check; follow the returned ACTION and do not repeat an approach it prohibits.",
       ],
       handler: async (ctx: any) => {
         try {
@@ -378,6 +479,28 @@ export default definePluginEntry({
           if (sub === "worked" && arg) {
             return { text: whatWorked(core.ledger, arg).markdown };
           }
+          if (sub === "send") {
+            const [to, ...restText] = arg.split(" :: ");
+            if (!to || !restText.length) return { text: "Usage: /phylax send <target> :: <text>" };
+            const r = sendCheck(core.ledger, { to, content: restText.join(" :: "), sessionKey: core.lastSessionKey });
+            return { text: `${r.verdict}: ${r.say}` };
+          }
+          if (sub === "sent") {
+            const r = didMessageGoOut(core.ledger, { sessionKey: core.lastSessionKey, sendId: arg ? Number(arg) : undefined });
+            return { text: `${r.verdict}: ${r.say}` };
+          }
+          if (sub === "brief") {
+            const r = compactionBrief(core.ledger, { sessionKey: core.lastSessionKey });
+            return { text: `${r.say}${r.mustNotForget.length ? "\n\nMUST NOT FORGET:\n- " + r.mustNotForget.join("\n- ") : ""}` };
+          }
+          if (sub === "match") {
+            const r = taskMatch(core.ledger, { sessionKey: core.lastSessionKey });
+            return { text: `${r.verdict}: ${r.say}` };
+          }
+          if (sub === "reconcile") {
+            const r = reconcile(core.ledger, { sessionKey: core.lastSessionKey });
+            return { text: `${r.verdict}: ${r.say}${r.claims.length ? "\n\n" + renderClaims(r) : ""}` };
+          }
           if (sub === "tokens") {
             return { text: renderTokenUse(tokenUse({ windowMinutes: arg ? Number(arg) : undefined })) };
           }
@@ -412,7 +535,7 @@ export default definePluginEntry({
             }
             return { text: lines.join("\n") };
           }
-          return { text: "Usage: /phylax [report [24h]] | outlook <host> | check [toolCallId] | failures | stop | circles | explore | risk <host|command> | others <host> | worked <host> | cost [minutes] | tokens [minutes] | paths <json> | scan <folder> | hosts <origin> | card <origin> | share [pact|on|off]" };
+          return { text: "Usage: /phylax [report [24h]] | outlook <host> | check [toolCallId] | send <to> :: <text> | sent [id] | brief | match | reconcile | failures | stop | circles | explore | risk <host|command> | others <host> | worked <host> | cost [minutes] | tokens [minutes] | paths <json> | scan <folder> | hosts <origin> | card <origin> | share [pact|on|off]" };
         } catch (err: any) {
           return { text: `ClawPhylax error: ${err?.message ?? err}` };
         }
@@ -466,12 +589,51 @@ export default definePluginEntry({
       }
     });
 
+    // Messaging and compaction: the two halves of "did that message go out"
+    // and "what did I lose". Every field is read defensively.
+    api.on("message_received", (event: unknown, ctx: unknown) => {
+      try {
+        const e = (event && typeof event === "object" ? event : {}) as Record<string, unknown>;
+        core.messageReceived({ from: str(e.from), content: typeof e.content === "string" ? e.content : "", sessionKey: str(e.sessionKey), runId: str(e.runId) }, hookCtx(ctx), msgCtx(ctx));
+      } catch {
+        /* observer */
+      }
+    });
+    api.on("message_sent", (event: unknown, ctx: unknown) => {
+      try {
+        const e = (event && typeof event === "object" ? event : {}) as Record<string, unknown>;
+        core.messageSent({ to: str(e.to), success: typeof e.success === "boolean" ? e.success : undefined, error: str(e.error), messageId: str(e.messageId), sessionKey: str(e.sessionKey) }, hookCtx(ctx));
+      } catch {
+        /* observer */
+      }
+    });
+    api.on("before_compaction", (event: unknown, ctx: unknown) => {
+      try {
+        const e = (event && typeof event === "object" ? event : {}) as Record<string, unknown>;
+        core.compaction("before", { messageCount: Number(e.messageCount) || undefined, compactingCount: Number(e.compactingCount) || undefined, tokenCount: Number(e.tokenCount) || undefined }, hookCtx(ctx));
+      } catch {
+        /* observer */
+      }
+    });
+    api.on("after_compaction", (event: unknown, ctx: unknown) => {
+      try {
+        const e = (event && typeof event === "object" ? event : {}) as Record<string, unknown>;
+        core.compaction("after", { messageCount: Number(e.messageCount) || undefined, compactedCount: Number(e.compactedCount) || undefined, tokenCount: Number(e.tokenCount) || undefined }, hookCtx(ctx));
+      } catch {
+        /* observer */
+      }
+    });
+
     // Append a one-line summary to the reply when the run touched new or
     // suspicious hosts. If the event shape is not what we expect, do nothing.
     api.on("message_sending", (event: unknown, ctx: unknown) => {
       try {
         const e = (event && typeof event === "object" ? event : {}) as Record<string, unknown>;
         const runId = hookCtx(ctx).runId ?? str(e.runId);
+        const gate = core.messageSending({ to: str(e.to), content: typeof e.content === "string" ? e.content : "", runId }, hookCtx(ctx), msgCtx(ctx));
+        if (gate.cancel) {
+          return { cancel: true, cancelReason: gate.cancelReason };
+        }
         const footer = core.footerForRun(runId);
         if (!footer) {
           return undefined;

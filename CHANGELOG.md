@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.5.0 — messaging: the send is the action
+
+Every OpenClaw turn ends in a send. Five questions about it, from the message
+hooks and the wire together:
+
+- `clawphylax_send_check` / `/phylax send <to> :: <text>` — is this safe to send?
+  Target vs the conversation this session is replying in and earlier sends;
+  secret-shaped values (API keys, tokens, private keys) and credential paths in
+  the text. SEND / CONFIRM_WITH_USER / DO_NOT_SEND.
+- `clawphylax_sent` / `/phylax sent` — did my message actually go out? The
+  runtime's `message_sent` result cross-checked against the request this process
+  made to the channel API and its status. DELIVERED / NOT_DELIVERED /
+  CLAIMED_ONLY / CANCELLED / PENDING / NO_SEND.
+- `clawphylax_compaction_brief` / `/phylax brief` — what did I lose in
+  compaction? `before_compaction`/`after_compaction` are recorded; the brief
+  rebuilds hosts, blocks, failures, silent failures, undelivered sends, working
+  routes and the last actions before the cut, with a MUST NOT FORGET list.
+- `clawphylax_task_match` / `/phylax match` — did I do what was asked? Inbound
+  request (keyword fingerprint, requested actions) vs the reply that went out vs
+  the actions in between. COHERENT / PARTIAL / INCOHERENT / NO_PAIR.
+- `clawphylax_reconcile` / `/phylax reconcile` — what do I believe I did vs what
+  the record shows? Success claims in the transcript checked against tool
+  outcomes, sends, and POST/PUT status on the wire.
+
+Hooks added: `message_received`, `message_sent`, `before_compaction`,
+`after_compaction`. `message_sending` now records the send (target, length,
+keyword fingerprint, secret kinds — never the text) and, in `enforce` mode only,
+cancels a message carrying a secret-shaped value. Ledger tables `inbound`,
+`outbound`, `compactions`. 22 tools, 19 skills.
+
 ## 0.4.0 — 2026-09-21
 
 - **Did that actually work?** (`clawphylax_did_it_work`, `/phylax check`, `openclaw clawphylax check`): cross-checks what a tool reported against what the wire showed for the same tool call — CONFIRMED / SILENT_FAILURE / UNVERIFIED / FAILED, with the mismatch named. The reply footer now raises a STOP CONDITION on silent failures. New skill `did-that-actually-work`.

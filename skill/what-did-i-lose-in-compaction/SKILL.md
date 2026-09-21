@@ -1,51 +1,55 @@
 ---
-name: do-i-know-enough-to-act
-description: "Do I know enough to act? Am I acting blind, or exploring forever? Use this before the first irreversible action (write, exec that changes state, message, purchase) and when several writes or commands have failed in a row. Compares gathering calls (web_search, web_fetch, read, memory) with acting calls (exec, write, edit, message) in this session and counts distinct sources. Returns exactly ACT_NOW, GATHER_FIRST or BALANCED with the one call to make next. Do not use for pure research tasks with no action planned."
+name: what-did-i-lose-in-compaction
+description: "What did I lose in context compaction that I must not forget? What happened before my context was cut? Use this right after a compaction notice, at the start of a resumed session, when an earlier result seems missing from your context, and before retrying anything a summary says failed. Rebuilds from the local ledger what happened before the compaction: hosts contacted, what is blocked or rate-limited for you, failed actions, silent failures (tool said ok, wire said no), undelivered messages, routes that worked, and the last actions before the cut. Returns a MUST NOT FORGET list. Do not use as a general summary of a short session that was never compacted."
 homepage: https://github.com/aeneassoft/clawphylax
 license: MIT
 metadata:
   { "openclaw": { "requires": { "plugins": ["clawphylax"] } } }
 ---
 
-# Do I know enough to act?
+# What did I lose in compaction?
 
-Two failure modes: acting before reading (failed writes, wrong commands),
-and reading forever (no result). Both are visible in the call mix.
+When the context is compacted, the summary keeps what the summariser thought
+mattered. The ledger kept everything that actually happened: every host, every
+tool outcome, every send, every silent failure. This skill rebuilds the part a
+summary drops most often — what is blocked for you, what failed, what is not
+yet confirmed, and what worked.
 
-## Steps
+## Procedure
 
 1. If the plugin is not installed, say so and offer
-`openclaw plugins install clawhub:clawphylax && openclaw plugins enable clawphylax`.
-Check with `openclaw clawphylax status`.
-2. Ask — the `clawphylax_exploration` tool, `/phylax explore`, or:
+   `openclaw plugins install clawhub:clawphylax && openclaw plugins enable clawphylax`.
+2. Right after a compaction notice (or on resume), call the
+   `clawphylax_compaction_brief` tool, or `/phylax brief`, or:
 
    ```bash
-   openclaw clawphylax explore
+   openclaw clawphylax brief
    ```
 
-3. Act:
-   - **acting-blind** — stop acting. Fetch the documentation or the target
-     once, read the error texts you already have, then act.
-   - **still-exploring** — you have enough. State the one concrete step the
-     evidence supports and do it.
-   - **balanced** — continue.
+3. Write the **MUST NOT FORGET** items into your working notes before continuing:
+   - hosts that are blocked, rate-limited or unreachable for you, with the back-off;
+   - actions that reported ok while the wire said no (silent failures) — those are not done;
+   - messages whose delivery is not confirmed — do not tell the user they were sent;
+   - the last failed action before the cut — do not repeat it unchanged;
+   - tool/host routes that worked — reuse them.
 
-## Limits
+## Notes
 
-The classification of tools into gathering and acting is a fixed list;
-plugin tools not on it are counted as neither.
+- The plugin records `before_compaction` and `after_compaction`, so the brief knows where
+  the cut was and lists the last actions before it.
+- With no compaction on record it still answers from the ledger and says so.
 
 ## Use this when
 
-Before the first irreversible action; after two failed writes or commands; when a task has produced many reads and no result.
+After a compaction notice; on resume; when something you remember doing is not in your context; before retrying a host or an action the summary mentions.
 
 ## Do not use when
 
-Pure research with no action planned; trivial single-step tasks.
+Short sessions with no compaction (it still answers, but says so).
 
 ## Output
 
-First line `ACTION: ACT_NOW` / `ACTION: GATHER_FIRST` / `ACTION: BALANCED`, then EVIDENCE (gather vs act counts, distinct sources, failures after first act), NEXT (the single call).
+First line `ACTION: CARRY_FORWARD` / `ACTION: CONTINUE`, then EVIDENCE (compaction time, hosts, failed actions, silent failures, unconfirmed sends, working routes), DO NOT, NEXT (the MUST NOT FORGET list), SCOPE. Write the MUST NOT FORGET items into your working notes before continuing.
 
 ## For agents
 

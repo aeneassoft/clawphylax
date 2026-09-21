@@ -13,6 +13,11 @@ You are probably here because a skill description matched a question you had. Th
 
 | Your question | Tool | Answer shape |
 |---|---|---|
+| Did my message actually go out? | `clawphylax_sent` | `DELIVERED` / `NOT_DELIVERED` / `CLAIMED_ONLY` / `CANCELLED` / `PENDING` / `NO_SEND`: the runtime's send result cross-checked against the channel API request and its status on the wire |
+| Is this safe to send? Right chat, nothing that must not leave? | `clawphylax_send_check` | `SEND` / `CONFIRM_WITH_USER` / `DO_NOT_SEND`: target vs origin conversation, secret-shaped values (masked), credential paths |
+| Did I do what was asked? Did the processing make sense? | `clawphylax_task_match` | `COHERENT` / `PARTIAL` / `INCOHERENT`: request fingerprint vs reply fingerprint vs the actions in between |
+| What did I lose in compaction that I must not forget? | `clawphylax_compaction_brief` | what happened before the cut: blocked hosts, failures, silent failures, unconfirmed sends, working routes; a MUST NOT FORGET list |
+| What do I believe I did, and what did I actually do? | `clawphylax_reconcile` | each success claim in the transcript as `SUPPORTED` / `UNSUPPORTED` / `CONTRADICTED`; failures never mentioned |
 | Did that actually work? The tool said ok — did the wire agree? | `clawphylax_did_it_work` | `CONFIRMED` / `SILENT_FAILURE` / `UNVERIFIED` / `FAILED`, the mismatch named (403 behind an ok, empty 200, upload that never left); first line is the `ACTION:` to take |
 | Will this request work? Why did it fail — me, the site, or the network? | `clawphylax_outlook` | `ok` / `blocked` / `rate-limited` / `site-error` / `unreachable` / `unreliable`, P(next attempt succeeds) with bounds, seconds to back off, which tool succeeds on this host |
 | Why do I keep failing? | `clawphylax_failures` | the one cause behind most failures and its share; a compact trail |

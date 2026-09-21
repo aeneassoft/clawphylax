@@ -1,56 +1,59 @@
 ---
-name: should-i-stop-and-ask
-description: "Should I stop and ask the user? Is this task possible with what I have? Use this when a task is failing repeatedly, the same approach has been tried twice, no new evidence is appearing, a host is refusing you, or you are about to ask a vague \"should I keep trying?\". Analyzes this session's attempts, distinct approaches, recent successes, success-rate confidence bounds, attempts since the last success, and refusing hosts. Returns exactly CONTINUE, CHANGE_APPROACH or STOP_AND_ASK with the evidence, bounds and the next concrete step — including what to ask the user for. Do not use before the second failure."
+name: is-this-safe-to-send
+description: "Is this safe to send? Am I sending this to the right chat, and does it contain anything that must not leave? Use this before sending a message to any target other than the conversation you are replying in, before forwarding content between chats or channels, and whenever the text could carry a credential, a token, or the contents of a config file. Checks the target against this session's origin conversation and earlier sends, and scans the text for secret-shaped values (sk-, AKIA, ghp_, xoxb-, JWTs, private key blocks, password=) and credential paths (~/.ssh, .env, .aws/credentials). Returns exactly SEND, CONFIRM_WITH_USER or DO_NOT_SEND with reasons. Do not use for a plain reply in the same conversation with no sensitive content."
 homepage: https://github.com/aeneassoft/clawphylax
 license: MIT
 metadata:
   { "openclaw": { "requires": { "plugins": ["clawphylax"] } } }
 ---
 
-# Should I stop and ask?
+# Is this safe to send?
 
-Continuing is a decision, not a default. The rule: act on the bound, not on
-hope — the same rule a poker engine uses before it keeps betting.
+Two ways a send goes wrong that no reply-quality check catches: it goes to the
+wrong conversation, or it carries something that must not leave (a key, a
+token, the contents of .env). This skill checks both before the send.
 
-## Steps
+## Procedure
 
 1. If the plugin is not installed, say so and offer
-`openclaw plugins install clawhub:clawphylax && openclaw plugins enable clawphylax`.
-Check with `openclaw clawphylax status`.
-2. Ask the rule — the `clawphylax_stop_or_continue` tool, `/phylax stop`, or:
+   `openclaw plugins install clawhub:clawphylax && openclaw plugins enable clawphylax`.
+2. Before the send, call the `clawphylax_send_check` tool with the target and the
+   text, or `/phylax send <target> :: <text>`, or:
 
    ```bash
-   openclaw clawphylax stop
+   openclaw clawphylax send <target> <text>
    ```
 
 3. Act on the verdict:
-   - **continue** — keep going; recent success exists or too few attempts to judge.
-   - **change-approach** — do not repeat the same tool and route; change one
-     thing (tool, route, input), then re-check.
-   - **stop-and-ask** — stop. Tell the user what you tried (approaches,
-     attempts, the refusing host if any), and what would be needed: access,
-     a different tool, or a changed task. This is a good outcome, not a failure.
+   - **SEND** — same conversation, no secret-shaped values, target seen before.
+   - **CONFIRM_WITH_USER** — different conversation, first-time target, or credential paths in
+     the text. Tell the user the target and the first line; wait for a yes.
+   - **DO_NOT_SEND** — a secret-shaped value is in the text. Remove it and re-check. If the
+     user explicitly wants it sent, say exactly what and where, and wait for a yes.
 
-4. Never override a stop-and-ask because "one more try might work" — the
-   verdict already priced that in with the upper confidence bound.
+## What is checked
 
-## Limits
+- Target vs the conversation this session is replying in (from the inbound message record)
+  and vs earlier sends of this session.
+- Secret shapes: private key blocks, AWS, OpenAI, Anthropic, GitHub, Slack, Stripe, Google,
+  Telegram bot, Twilio, npm tokens, JWTs, Bearer tokens, password= assignments, long
+  high-entropy tokens. Values are masked in the output and never stored.
+- Credential paths named in the text.
 
-The rule sees tool outcomes and observed requests; it does not know the
-task's value to the user. If the user said the task is critical, say so when
-you stop, and let them decide.
+In `enforce` mode the plugin also cancels any outbound message that carries a
+secret-shaped value, at the `message_sending` hook.
 
 ## Use this when
 
-Repeated failure; two attempts with the same approach; no new evidence for several calls; a refusing host; before asking the user anything vague.
+Before a send to a different chat, user, channel or provider than the one you are replying in; before forwarding; before sending anything copied from a file, a terminal or a tool result.
 
 ## Do not use when
 
-After a single failure. When the user already set a hard budget or deadline — then follow that.
+A plain reply in the same conversation with no sensitive content; a target the user named explicitly in this conversation (that counts as confirmed — still run the secret scan).
 
 ## Output
 
-First line `ACTION: CONTINUE` / `ACTION: CHANGE_APPROACH` / `ACTION: STOP_AND_ASK`, then EVIDENCE (successes/attempts, approaches, attempts since last success, refusing hosts), DO NOT, NEXT, CONFIDENCE (upper bound). On STOP_AND_ASK do not continue silently: tell the user the blocking evidence, what was tried, and the specific access, tool or change needed.
+First line `ACTION: SEND` / `ACTION: CONFIRM_WITH_USER` / `ACTION: DO_NOT_SEND`, then EVIDENCE (target vs origin, first-time target, secret kinds masked, credential paths), DO NOT, NEXT. On DO_NOT_SEND remove the value and re-check; on CONFIRM tell the user the target and the first line and wait for a yes.
 
 ## For agents
 

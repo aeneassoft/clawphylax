@@ -72,6 +72,11 @@ questions:
 - `which-path-is-worth-it` — *Which path is worth it?* exploit / explore / fold under incomplete information.
 - `am-i-using-too-many-tokens` — *Am I using too many tokens?* act / gather / repeat / deliberate — executing or arguing with yourself.
 - `did-that-actually-work` — *Did that actually work?* the tool's report cross-checked against the wire.
+- `did-my-message-go-out` — *Did my message actually go out?* runtime send result cross-checked against the channel API on the wire.
+- `is-this-safe-to-send` — *Is this safe to send?* target vs origin conversation; secret-shaped values in the text.
+- `did-i-do-what-was-asked` — *Did I do what was asked?* request vs reply vs the actions in between.
+- `what-did-i-lose-in-compaction` — *What did I lose in compaction?* what happened before the cut, with a MUST NOT FORGET list.
+- `what-did-i-actually-do` — *What did I actually do?* success claims in the transcript checked against the record.
 
 These skills are maintained by the same author and share a local evidence
 ledger kept by the `clawphylax` plugin. Review each skill independently; shared

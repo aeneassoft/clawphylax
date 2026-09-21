@@ -9,6 +9,8 @@ import { installInterceptor, type Observed } from "./intercept.js";
 import { installUndiciSeam } from "./undici-seam.js";
 import { attributionKey, Ledger } from "./ledger.js";
 import { renderRunFooter } from "./report.js";
+import { asksOf, keywordsOf } from "./messaging.js";
+import { findSecretShapes } from "./secrets.js";
 import type { Attribution, EgressEvent, Flag, PluginConfig } from "./types.js";
 
 export type Logger = { info: (m: string) => void; warn: (m: string) => void; debug?: (m: string) => void };
@@ -23,6 +25,8 @@ export type ToolCallEvent = {
   ok?: boolean;
   durationMs?: number;
 };
+
+export type MsgCtx = { channelId?: string; conversationId?: string; accountId?: string };
 
 export type HookContext = {
   agentId?: string;
@@ -318,6 +322,67 @@ export class Core {
       });
     } catch (err: any) {
       this.log.warn("tool outcome not recorded: " + (err?.message ?? err));
+    }
+  }
+
+  // ------------------------------------------------------------ messaging
+  // Texts are reduced to keyword fingerprints at the hook; the texts themselves
+  // are never written to the ledger.
+
+  messageReceived(ev: { from?: string; content?: string; sessionKey?: string; runId?: string }, ctx: HookContext, m: MsgCtx = {}): void {
+    const sessionKey = ev.sessionKey ?? ctx.sessionKey;
+    if (sessionKey) {
+      this.lastSessionKey = sessionKey;
+    }
+    try {
+      const content = ev.content ?? "";
+      this.ledger.recordInbound({ ts: Date.now(), sessionKey, channelId: m.channelId, conversationId: m.conversationId, from: ev.from, len: content.length, keywords: keywordsOf(content), asks: asksOf(content) });
+    } catch (err: any) {
+      this.log.warn("inbound not recorded: " + (err?.message ?? err));
+    }
+  }
+
+  /** Records the outbound message; in enforce mode cancels one that carries a secret-shaped value. */
+  messageSending(ev: { to?: string; content?: string; runId?: string }, ctx: HookContext, m: MsgCtx = {}): { cancel: boolean; cancelReason?: string } {
+    const content = ev.content ?? "";
+    const secrets = findSecretShapes(content);
+    const cancel = this.cfg.mode === "enforce" && secrets.length > 0;
+    try {
+      this.ledger.recordOutbound({
+        ts: Date.now(),
+        runId: ev.runId ?? ctx.runId,
+        sessionKey: ctx.sessionKey ?? this.lastSessionKey,
+        channelId: m.channelId,
+        conversationId: m.conversationId,
+        to: ev.to ?? "",
+        len: content.length,
+        keywords: keywordsOf(content),
+        secretKinds: secrets.map((s) => s.kind),
+        cancelled: cancel,
+        error: cancel ? "cancelled by ClawPhylax enforce: secret-shaped value in outbound message" : undefined,
+      });
+    } catch (err: any) {
+      this.log.warn("outbound not recorded: " + (err?.message ?? err));
+    }
+    if (cancel) {
+      return { cancel: true, cancelReason: `ClawPhylax: the message contains a secret-shaped value (${secrets.map((s) => s.kind).join(", ")}); enforce mode does not send it. Remove the value and send again.` };
+    }
+    return { cancel: false };
+  }
+
+  messageSent(ev: { to?: string; success?: boolean; error?: string; messageId?: string; sessionKey?: string }, ctx: HookContext): void {
+    try {
+      this.ledger.markSent({ ts: Date.now(), sessionKey: ev.sessionKey ?? ctx.sessionKey ?? this.lastSessionKey, to: ev.to ?? "", success: ev.success !== false, error: ev.error, messageId: ev.messageId });
+    } catch (err: any) {
+      this.log.warn("sent not recorded: " + (err?.message ?? err));
+    }
+  }
+
+  compaction(phase: "before" | "after", ev: { messageCount?: number; compactedCount?: number; compactingCount?: number; tokenCount?: number }, ctx: HookContext): void {
+    try {
+      this.ledger.recordCompaction({ ts: Date.now(), sessionKey: ctx.sessionKey ?? this.lastSessionKey, phase, messageCount: ev.messageCount, compactedCount: ev.compactedCount ?? ev.compactingCount, tokenCount: ev.tokenCount });
+    } catch (err: any) {
+      this.log.warn("compaction not recorded: " + (err?.message ?? err));
     }
   }
 

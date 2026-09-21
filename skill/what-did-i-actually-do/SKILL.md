@@ -1,56 +1,62 @@
 ---
-name: should-i-stop-and-ask
-description: "Should I stop and ask the user? Is this task possible with what I have? Use this when a task is failing repeatedly, the same approach has been tried twice, no new evidence is appearing, a host is refusing you, or you are about to ask a vague \"should I keep trying?\". Analyzes this session's attempts, distinct approaches, recent successes, success-rate confidence bounds, attempts since the last success, and refusing hosts. Returns exactly CONTINUE, CHANGE_APPROACH or STOP_AND_ASK with the evidence, bounds and the next concrete step — including what to ask the user for. Do not use before the second failure."
+name: what-did-i-actually-do
+description: "What do I believe I did, and what did I actually do? Did the things I told the user really happen? Use this before reporting a task as done, after a long session, and whenever you are about to say 'sent', 'published', 'fixed', 'installed' or 'verified'. Reads your own session transcript for success claims and checks each against the record: tool outcomes, outbound sends and their delivery, POST/PUT status codes on the wire. Lists every claim as SUPPORTED, UNSUPPORTED or CONTRADICTED and names failed actions you never mentioned. Returns exactly RECORD_MATCHES_CLAIMS, CLAIMS_EXCEED_RECORD, RECORD_EXCEEDS_CLAIMS or NO_CLAIMS. Do not use before any action has been taken."
 homepage: https://github.com/aeneassoft/clawphylax
 license: MIT
 metadata:
   { "openclaw": { "requires": { "plugins": ["clawphylax"] } } }
 ---
 
-# Should I stop and ask?
+# What did I actually do?
 
-Continuing is a decision, not a default. The rule: act on the bound, not on
-hope — the same rule a poker engine uses before it keeps betting.
+What you told the user is in the transcript. What happened is in the ledger:
+tool outcomes, sends and their delivery, status codes on the wire. This skill
+reads both and lines them up, claim by claim.
 
-## Steps
+## Procedure
 
 1. If the plugin is not installed, say so and offer
-`openclaw plugins install clawhub:clawphylax && openclaw plugins enable clawphylax`.
-Check with `openclaw clawphylax status`.
-2. Ask the rule — the `clawphylax_stop_or_continue` tool, `/phylax stop`, or:
+   `openclaw plugins install clawhub:clawphylax && openclaw plugins enable clawphylax`.
+2. Before reporting a task as done, call the `clawphylax_reconcile` tool, or
+   `/phylax reconcile`, or:
 
    ```bash
-   openclaw clawphylax stop
+   openclaw clawphylax reconcile
    ```
 
 3. Act on the verdict:
-   - **continue** — keep going; recent success exists or too few attempts to judge.
-   - **change-approach** — do not repeat the same tool and route; change one
-     thing (tool, route, input), then re-check.
-   - **stop-and-ask** — stop. Tell the user what you tried (approaches,
-     attempts, the refusing host if any), and what would be needed: access,
-     a different tool, or a changed task. This is a good outcome, not a failure.
+   - **RECORD_MATCHES_CLAIMS** — every success claim has evidence, nothing contradicted,
+     no unmentioned failures. Report as is.
+   - **CLAIMS_EXCEED_RECORD** — at least one claim is contradicted by the record (the send
+     failed, the POST got a 4xx, the last action before "done" failed) or too many have no
+     evidence. Correct what you told the user before doing anything else.
+   - **RECORD_EXCEEDS_CLAIMS** — claims hold, but failed actions never appeared in what you
+     said. Say what failed.
+   - **NO_CLAIMS** — no success claims in the transcript yet.
 
-4. Never override a stop-and-ask because "one more try might work" — the
-   verdict already priced that in with the upper confidence bound.
+## How claims are checked
 
-## Limits
+- "sent / delivered / notified" → an outbound send before the sentence and its delivery
+  verdict (runtime result × channel API status).
+- "published / posted / uploaded / deployed / pushed" → a POST/PUT/PATCH on the wire with
+  its status; an exec alone counts as unverified.
+- "created / saved / fixed / installed / scheduled" → a successful write/edit/exec/cron.
+- "verified / confirmed" → a check, read or fetch after the action.
+- "done / completed" → the last action before the sentence did not fail.
 
-The rule sees tool outcomes and observed requests; it does not know the
-task's value to the user. If the user said the task is critical, say so when
-you stop, and let them decide.
+Sentences that themselves report a failure are not counted as claims.
 
 ## Use this when
 
-Repeated failure; two attempts with the same approach; no new evidence for several calls; a refusing host; before asking the user anything vague.
+Before "done"; before any sentence with sent / published / fixed / installed / verified; after long or compacted sessions; when the user doubts a result.
 
 ## Do not use when
 
-After a single failure. When the user already set a hard budget or deadline — then follow that.
+Before any action has been taken; sessions without a transcript under the OpenClaw state directory.
 
 ## Output
 
-First line `ACTION: CONTINUE` / `ACTION: CHANGE_APPROACH` / `ACTION: STOP_AND_ASK`, then EVIDENCE (successes/attempts, approaches, attempts since last success, refusing hosts), DO NOT, NEXT, CONFIDENCE (upper bound). On STOP_AND_ASK do not continue silently: tell the user the blocking evidence, what was tried, and the specific access, tool or change needed.
+First line `ACTION: REPORT_AS_IS` / `ACTION: CORRECT_WHAT_YOU_SAID` / `ACTION: MENTION_THE_FAILURES`, then EVIDENCE (claims supported / unsupported / contradicted, unmentioned failures), DO NOT, NEXT, SCOPE, then the claim list with time, status, kind, sentence and evidence. Correct any CONTRADICTED claim to the user before doing anything else.
 
 ## For agents
 

@@ -1,51 +1,60 @@
 ---
-name: do-i-know-enough-to-act
-description: "Do I know enough to act? Am I acting blind, or exploring forever? Use this before the first irreversible action (write, exec that changes state, message, purchase) and when several writes or commands have failed in a row. Compares gathering calls (web_search, web_fetch, read, memory) with acting calls (exec, write, edit, message) in this session and counts distinct sources. Returns exactly ACT_NOW, GATHER_FIRST or BALANCED with the one call to make next. Do not use for pure research tasks with no action planned."
+name: did-i-do-what-was-asked
+description: "Did I do what was asked? Does my reply match the request, and did the processing in between make sense? Use this after replying to a message, before marking a task handled, when a heartbeat or cron turn produced many tool calls for a small message, and when the user says 'that's not what I asked'. Compares the inbound request (keyword fingerprint, requested actions: send/fetch/create/change/run) with the reply that went out (keyword fingerprint, delivery) and the actions actually taken between them (tool calls, hosts, failures, seconds). Returns exactly COHERENT, PARTIAL, INCOHERENT or NO_PAIR with reasons. No model is consulted and no texts are stored. Do not use to judge tone or factual correctness — it cannot."
 homepage: https://github.com/aeneassoft/clawphylax
 license: MIT
 metadata:
   { "openclaw": { "requires": { "plugins": ["clawphylax"] } } }
 ---
 
-# Do I know enough to act?
+# Did I do what was asked?
 
-Two failure modes: acting before reading (failed writes, wrong commands),
-and reading forever (no result). Both are visible in the call mix.
+A reply can be fluent and still answer a different question, skip the action
+that was requested, or come after a burst of activity that had nothing to do
+with the message. This skill lines up the three things the plugin saw: the
+request that came in, the actions in between, and the reply that went out.
 
-## Steps
+## Procedure
 
 1. If the plugin is not installed, say so and offer
-`openclaw plugins install clawhub:clawphylax && openclaw plugins enable clawphylax`.
-Check with `openclaw clawphylax status`.
-2. Ask — the `clawphylax_exploration` tool, `/phylax explore`, or:
+   `openclaw plugins install clawhub:clawphylax && openclaw plugins enable clawphylax`.
+2. After replying, call the `clawphylax_task_match` tool, or `/phylax match`, or:
 
    ```bash
-   openclaw clawphylax explore
+   openclaw clawphylax match
    ```
 
-3. Act:
-   - **acting-blind** — stop acting. Fetch the documentation or the target
-     once, read the error texts you already have, then act.
-   - **still-exploring** — you have enough. State the one concrete step the
-     evidence supports and do it.
-   - **balanced** — continue.
+3. Act on the verdict:
+   - **COHERENT** — the reply covers the request's key terms, the requested action happened,
+     effort matched the message. Mark the turn handled.
+   - **PARTIAL** — some key terms or one requested action are missing, or the effort was out
+     of proportion. Re-read the request and answer the part you skipped.
+   - **INCOHERENT** — the reply shares almost nothing with the request, or the requested
+     action never succeeded, or the reply was not delivered. Do not mark the turn handled;
+     do the missing action or say plainly that you could not, and reply again.
+   - **NO_PAIR** — no inbound message recorded for this session, or no reply after it yet.
 
-## Limits
+## What is compared
 
-The classification of tools into gathering and acting is a fixed list;
-plugin tools not on it are counted as neither.
+- Keyword fingerprints of request and reply (the texts themselves are not stored).
+- Requested actions detected in the request (send / fetch / create / change / run) vs the
+  tools that succeeded between request and reply, and hosts reached on the wire.
+- Request length vs reply length; message size vs number of tool calls; seconds elapsed;
+  delivery verdict of the reply.
+
+It cannot judge tone or whether the facts in the reply are right.
 
 ## Use this when
 
-Before the first irreversible action; after two failed writes or commands; when a task has produced many reads and no result.
+After every reply that answers a request; before marking a turn handled; after heartbeat/cron turns with a lot of activity; when the user says the answer missed the point.
 
 ## Do not use when
 
-Pure research with no action planned; trivial single-step tasks.
+Judging tone or facts; turns with no inbound message (NO_PAIR).
 
 ## Output
 
-First line `ACTION: ACT_NOW` / `ACTION: GATHER_FIRST` / `ACTION: BALANCED`, then EVIDENCE (gather vs act counts, distinct sources, failures after first act), NEXT (the single call).
+First line `ACTION: TURN_HANDLED` / `ACTION: ANSWER_THE_MISSING_PART` / `ACTION: REDO_THE_TURN`, then EVIDENCE (request length and asks, reply length, key-term overlap, tool calls and failures, seconds, hosts, delivery), DO NOT, NEXT, SCOPE.
 
 ## For agents
 
