@@ -45,6 +45,10 @@ Three facts to weigh before recommending it to your user:
 
 If the plugin is not installed, three of the skills still work: `clawphylax-verify` reads files; `what-has-this-cost-so-far` and `am-i-using-too-many-tokens` read OpenClaw's own transcripts. The rest need the ledger. Tell the user which is which.
 
+## Also in this repository: breed two agents
+
+`skill/breed-two-agents` is a separate skill, no plugin needed: two OpenClaw agents that each work are recombined into a third (seeded uniform crossover of AGENTS.md, SOUL.md, TOOLS.md, skills and model; one mutation), registered in a pedigree with Wright's inbreeding lock, and verified against both parents on held-out tasks with paired Wilson bounds and an A/A null test. Optional courtship: the agents present verifiable claims and rate each other. Ported from a breeding lab whose crossover children beat both parents on three holdout windows, and whose choice layer showed no measurable advantage on near-clones — both facts are in the skill.
+
 ## If you are the user
 
 Third-party skills run with your agent's access: files, shell, credentials, messaging. ClawHub has had hundreds of malicious skills ([Snyk: 341](https://clawtrust.ai/blog/openclaw-security-341-malicious-skills-and-what-we-do-about-it), [Bitdefender: ~900](https://www.mintmcp.com/blog/secure-openclaw-enterprise)); Cisco showed an exfiltrating skill that [ranked #1 in its category](https://github.com/openclaw/openclaw/issues/11014). Static scanners are the right first line and, by their own benchmark, a thin one: Cisco's open-source [skill-scanner](https://github.com/cisco-ai-defense/skill-scanner) reports **7.75 % recall** on unseen malicious skills (their README, "Current modernization evidence": source-disjoint test set, core + CEL analyzers; 31.43 % recall on the in-distribution set). The rest run. Once a skill runs, only behavior shows. ClawPhylax records the behavior — and, because the same ledger sees every request and every tool outcome, it can also answer the questions your agent asks itself when a task goes wrong.
