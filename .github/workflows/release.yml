@@ -5,9 +5,12 @@ name: release
 # Run with dry_run=true first (default): validates the package, previews the
 # ClawHub publishes, needs no secrets. Then run with dry_run=false.
 #
-# After the first authenticated publish, both registries can switch to OIDC
-# trusted publishing (npm: package settings → Trusted publisher, workflow
-# release.yml; ClawHub: `clawhub package trusted-publisher set`).
+# Both registries use OIDC trusted publishing: no token anywhere.
+#   npm:     npmjs.com → package clawphylax → Settings → Trusted publishing → GitHub Actions
+#            (Organization or user: aeneassoft, Repository: clawphylax, Workflow filename: release.yml)
+#   ClawHub: clawhub package trusted-publisher set clawphylax --repository aeneassoft/clawphylax --workflow-filename release.yml
+# Trigger: GitHub → Actions → release → Run workflow → dry_run=false.
+# The CLAWHUB_TOKEN / NPM_TOKEN secrets are optional fallbacks and should stay unset.
 
 on:
   workflow_dispatch:
@@ -27,7 +30,7 @@ on:
       changelog:
         description: "Release note shown on ClawHub"
         type: string
-        default: "Initial release: pre-install scan, runtime egress attribution, destination baselines, witness cards."
+        default: "See CHANGELOG.md for this version."
 
 permissions: {}
 
@@ -69,9 +72,8 @@ jobs:
         run: |
           if [[ "$DRY_RUN" == "true" ]]; then
             npm publish --dry-run --access public
-          elif [[ -z "$NODE_AUTH_TOKEN" ]]; then
-            echo "::error::NPM_TOKEN secret is not set (or configure npm trusted publishing for this workflow)."; exit 1
           else
+            # With npm trusted publishing configured for this workflow, no token is needed (OIDC).
             npm publish --provenance --access public
           fi
 
@@ -87,7 +89,7 @@ jobs:
       source: aeneassoft/clawphylax@${{ github.sha }}
       dry_run: ${{ inputs.dry_run }}
       changelog: ${{ inputs.changelog }}
-      topics: security,skill-safety,verify-skill,exfiltration,egress
+      topics: agent-diagnostics,verification,messaging,skill-safety,security
     secrets:
       clawhub_token: ${{ secrets.CLAWHUB_TOKEN }}
 
@@ -102,6 +104,5 @@ jobs:
       root: skill
       dry_run: ${{ inputs.dry_run }}
       changelog: ${{ inputs.changelog }}
-      topics: security,skill-safety,verify-skill,exfiltration,egress
     secrets:
       clawhub_token: ${{ secrets.CLAWHUB_TOKEN }}
