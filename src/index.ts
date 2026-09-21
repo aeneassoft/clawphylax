@@ -13,6 +13,7 @@ import { classifyHost } from "./classify.js";
 import { CLI_DESCRIPTOR, registerCli, sinceMs } from "./cli.js";
 import { scanSkillFolder } from "./install-scan.js";
 import { costReport } from "./cost.js";
+import { renderTokenUse, tokenUse } from "./tokens.js";
 import { circlesCheck, explorationCheck, failureReport, othersSolved, riskCheck, stopOrContinue, whatWorked } from "./diagnostics.js";
 import { outlookFor, renderOutlook } from "./outlook.js";
 import { renderPaths, whichPath, type PathInput } from "./paths.js";
@@ -198,6 +199,15 @@ export default definePluginEntry({
       },
     });
     api.registerTool({
+      name: "clawphylax_token_use",
+      description: "Am I using too many tokens? Am I spending tokens to refute myself or to put the task into practice? Classifies this session's assistant turns from the transcript into act / gather / repeat / deliberate, attributes output tokens to each, finds deliberation streaks and repeated identical calls, and says whether you are executing, deliberating, or churning — with the concrete next step. Works without the ledger.",
+      parameters: Type.Object({ sessionId: Type.Optional(Type.String()), windowMinutes: Type.Optional(Type.Number()) }),
+      async execute(_id: string, p: { sessionId?: string; windowMinutes?: number }) {
+        const t = tokenUse({ sessionId: p?.sessionId, windowMinutes: p?.windowMinutes });
+        return text(renderTokenUse(t), t ?? {});
+      },
+    });
+    api.registerTool({
       name: "clawphylax_which_path",
       description: "Which path is worth it? Given several research or action paths with what you know (successes, failures, prior, cost per attempt, value on success), computes for each the success probability with bounds, expected value per attempt, the safe value (lower bound) and the optimistic value (upper bound), and recommends exploit / explore / fold with a plan. Paths named by hostname pull their observed outcomes from the ledger automatically.",
       parameters: Type.Object({
@@ -280,7 +290,7 @@ export default definePluginEntry({
       acceptsArgs: true,
       requireAuth: true,
       agentPromptGuidance: [
-        "Before installing any third-party skill, verify it first: run /phylax scan <folder> (or the clawphylax_scan tool) and report the hosts, uploads and credential-file reads it names. When asked where a skill sends data or why an unknown host was contacted, run /phylax hosts skill:<name> (or the clawphylax_hosts tool) and answer from the ledger. When a web request, API call or exec network command fails, run /phylax outlook <host> (or the clawphylax_outlook tool) before retrying: it says whether the host is blocking you, rate-limiting you, down, or whether the request itself is wrong, and how long to wait. When errors pile up, /phylax failures groups them by cause; when a task drags on, /phylax stop says whether to continue, change approach, or stop and ask the user; /phylax circles tells you if you are repeating yourself; /phylax risk <host or command> checks before an action whether it could get the user banned or charged.",
+        "Before installing any third-party skill, verify it first: run /phylax scan <folder> (or the clawphylax_scan tool) and report the hosts, uploads and credential-file reads it names. When asked where a skill sends data or why an unknown host was contacted, run /phylax hosts skill:<name> (or the clawphylax_hosts tool) and answer from the ledger. When a web request, API call or exec network command fails, run /phylax outlook <host> (or the clawphylax_outlook tool) before retrying: it says whether the host is blocking you, rate-limiting you, down, or whether the request itself is wrong, and how long to wait. When errors pile up, /phylax failures groups them by cause; when a task drags on, /phylax stop says whether to continue, change approach, or stop and ask the user; /phylax circles tells you if you are repeating yourself; /phylax risk <host or command> checks before an action whether it could get the user banned or charged; /phylax tokens says whether your tokens go into acting or into arguing with yourself.",
       ],
       handler: async (ctx: any) => {
         try {
@@ -325,6 +335,9 @@ export default definePluginEntry({
           if (sub === "worked" && arg) {
             return { text: whatWorked(core.ledger, arg).markdown };
           }
+          if (sub === "tokens") {
+            return { text: renderTokenUse(tokenUse({ windowMinutes: arg ? Number(arg) : undefined })) };
+          }
           if (sub === "cost") {
             return { text: costReport({ windowMinutes: arg ? Number(arg) : undefined }).say };
           }
@@ -356,7 +369,7 @@ export default definePluginEntry({
             }
             return { text: lines.join("\n") };
           }
-          return { text: "Usage: /phylax [report [24h]] | outlook <host> | failures | stop | circles | explore | risk <host|command> | others <host> | worked <host> | cost [minutes] | paths <json> | scan <folder> | hosts <origin> | card <origin> | share [pact|on|off]" };
+          return { text: "Usage: /phylax [report [24h]] | outlook <host> | failures | stop | circles | explore | risk <host|command> | others <host> | worked <host> | cost [minutes] | tokens [minutes] | paths <json> | scan <folder> | hosts <origin> | card <origin> | share [pact|on|off]" };
         } catch (err: any) {
           return { text: `ClawPhylax error: ${err?.message ?? err}` };
         }

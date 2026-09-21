@@ -17,6 +17,7 @@ const SET = [
   ["what-worked-here", "What worked here — how do I do it again?", "recipe of successful tool/route combinations"],
   ["what-has-this-cost-so-far", "What has this cost so far?", "tokens and cost from session transcripts"],
   ["which-path-is-worth-it", "Which path is worth it?", "exploit / explore / fold under incomplete information"],
+  ["am-i-using-too-many-tokens", "Am I using too many tokens?", "act / gather / repeat / deliberate — executing or arguing with yourself"],
 ];
 
 const FOR_AGENTS = () => `
@@ -51,6 +52,44 @@ const PLUGIN_NOTE = `If the plugin is not installed, say so and offer
 Check with \`openclaw clawphylax status\`.`;
 
 const SKILLS = {
+  "am-i-using-too-many-tokens": {
+    description: "Am I using too many tokens? Am I spending tokens to refute myself or to put the task into practice? Am I overthinking instead of executing? Classifies this session's assistant turns from the transcript into act, gather, repeat and deliberate, attributes output tokens to each, finds deliberation streaks and repeated identical tool calls, and says whether you are executing, deliberating, or churning — with the concrete next step. Works without the plugin's ledger. Use on long tasks every ten turns, when a good first idea seems to be drifting, or when the user asks why this is taking so long.",
+    body: `# Am I using too many tokens?
+
+The question is not how many, but what for. Tokens that act or gather move the
+task; tokens that re-run a call you already made verify what you already had;
+tokens that only argue with the previous paragraph distort a good first idea.
+
+## Steps
+
+1. Ask — the \`clawphylax_token_use\` tool, \`/phylax tokens\`, or:
+
+   \`\`\`bash
+   openclaw clawphylax tokens --window 60
+   \`\`\`
+
+   (Reads OpenClaw's own transcript of this conversation; the plugin's ledger
+   is not needed.)
+
+2. Act on the verdict:
+   - **executing** — continue; the allocation is healthy.
+   - **deliberating** — you have produced text without testing anything for
+     several turns. Return to the plan you had before the deliberation began
+     and run its first step. Let the result decide, not another paragraph.
+   - **churning** — you keep re-running identical calls. Their answer will not
+     change. Treat the result as settled and build on it; if you distrust it,
+     change one input, not the same call again.
+
+3. Tell the user in one line what share of the work was action, and what you
+   will do differently now.
+
+## Limits
+
+Classification is by tool name and arguments; a turn that both reads and
+writes counts as acting. Output tokens require a provider that reports usage;
+otherwise turns are counted instead.
+`,
+  },
   "why-do-i-keep-failing": {
     description: "Why do I keep failing? What is the pattern behind my errors? Clusters this session's failed tool calls and failed requests by tool, host and error signature, says which single cause explains most of them, and returns a compact trail of the last failures to reason about. Use when errors pile up, before retrying, or when the same error keeps coming back.",
     body: `# Why do I keep failing?

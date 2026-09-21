@@ -2,6 +2,7 @@
 
 import { Ledger, defaultLedgerPath } from "./ledger.js";
 import { costReport } from "./cost.js";
+import { renderTokenUse, tokenUse } from "./tokens.js";
 import { circlesCheck, explorationCheck, failureReport, othersSolved, riskCheck, stopOrContinue, whatWorked } from "./diagnostics.js";
 import { outlookFor, renderOutlook } from "./outlook.js";
 import { renderPaths, whichPath } from "./paths.js";
@@ -193,6 +194,10 @@ export function registerCli(program: Command, out: (s: string) => void = (s) => 
   root.command("cost").description("What has this cost so far? Tokens and cost from session transcripts (no ledger needed)").option("--window <minutes>").option("--session <id>").option("--json").action((o: Record<string, unknown>) => {
     const r = costReport({ windowMinutes: o.window ? Number(o.window) : undefined, sessionId: o.session as string | undefined });
     out(J(o, r, `${r.say}\n${r.sessions.slice(0, 10).map((s) => `- ${s.agent}/${s.sessionId.slice(0, 8)}  ${s.totalTokens.toLocaleString()} tok  ${s.cost ? "$" + s.cost.toFixed(4) : "-"}  ${s.toolCalls} tool calls`).join("\n")}`));
+  });
+  root.command("tokens").description("Am I using too many tokens? Act / gather / repeat / deliberate from the current transcript").option("--window <minutes>").option("--session <id>").option("--json").action((o: Record<string, unknown>) => {
+    const t = tokenUse({ windowMinutes: o.window ? Number(o.window) : undefined, sessionId: o.session as string | undefined });
+    out(o.json ? JSON.stringify(t ?? {}, null, 2) : renderTokenUse(t));
   });
   root.command("paths").description("Which path is worth it? JSON array of {name,successes,failures,prior,costPerAttempt,valueIfSuccess}").argument("<json>").option("--budget <n>").option("--json").option("--db <path>").action((json: string, o: Record<string, unknown>) =>
     withLedger(o, (l) => { const parsed = JSON.parse(json); const r = whichPath(Array.isArray(parsed) ? parsed : parsed.paths ?? [], { budget: o.budget ? Number(o.budget) : parsed.budget, ledger: l }); return J(o, r, renderPaths(r)); }));

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1 — 2026-09-21
+
+- **Token use** (`clawphylax_token_use`, `/phylax tokens`, `openclaw clawphylax tokens`): am I using too many tokens — and am I spending them to refute myself or to put the task into practice? Assistant turns classified act / gather / repeat / deliberate from the transcript, output tokens attributed, deliberation streaks and repeated identical calls → executing / deliberating / churning. Works without the ledger. New skill `am-i-using-too-many-tokens`.
+
 ## 0.3.0 — 2026-09-21
 
 - **Self-diagnostics for agents** (tools, `/phylax` subcommands, CLI): `failures` (why do I keep failing — error clusters and a trail), `stop` (should I stop and ask — a stopping rule on bounds), `circles` (am I going in circles), `explore` (do I know enough to act), `risk` (could this get the user banned or charged — pre-action check), `others` (has another session already reached this host), `worked` (what worked here — recipe), `cost` (what has this cost so far — from session transcripts, no ledger needed).
