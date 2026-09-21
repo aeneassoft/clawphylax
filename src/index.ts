@@ -12,6 +12,7 @@ import { baselineFor } from "./baseline.js";
 import { classifyHost } from "./classify.js";
 import { CLI_DESCRIPTOR, registerCli, sinceMs } from "./cli.js";
 import { scanSkillFolder } from "./install-scan.js";
+import { outlookFor, renderOutlook } from "./outlook.js";
 import { renderCard, renderHosts, renderSummary } from "./report.js";
 import { sharedCore, type HookContext, type ToolCallEvent } from "./core.js";
 import { attributionKey, Ledger } from "./ledger.js";
@@ -99,6 +100,19 @@ export default definePluginEntry({
       },
     });
     api.registerTool({
+      name: "clawphylax_outlook",
+      description:
+        "Will a request to this host work? Why did my last request fail — me, the site, or the network? Should I retry, wait, or switch tools? Answers from this machine's observed requests: success probability with confidence bounds, diagnosis (ok / blocked / rate-limited / site-error / unreachable / unreliable), back-off seconds, and which tool succeeds on this host. Call it before retrying a failed web_fetch, exec network command or API call.",
+      parameters: Type.Object({
+        host: Type.String({ description: "Hostname, e.g. api.example.com" }),
+        windowMinutes: Type.Optional(Type.Number({ description: "Look-back window in minutes (default 60; falls back to all-time when empty)." })),
+      }),
+      async execute(_id: string, params: { host: string; windowMinutes?: number }) {
+        const o = outlookFor(core.ledger, params.host, params.windowMinutes ?? 60);
+        return { content: [{ type: "text", text: renderOutlook(o) }], details: o };
+      },
+    });
+    api.registerTool({
       name: "clawphylax_scan",
       description:
         "Scan a skill folder BEFORE installing or trusting it: lists every network host its SKILL.md and scripts name, whether they upload data, and whether they read credential files (~/.ssh, .env, ~/.aws). Returns clean / review / suspicious. Use after `openclaw skills inspect` or on any local skill directory.",
@@ -139,11 +153,11 @@ export default definePluginEntry({
     // Guidance text stays about the command itself, as the SDK docs ask.
     api.registerCommand({
       name: "phylax",
-      description: "ClawPhylax: report outbound activity, scan a skill folder, list hosts for an origin, or render a witness card.",
+      description: "ClawPhylax: report outbound activity, diagnose a failing host (outlook), scan a skill folder, list hosts for an origin, or render a witness card.",
       acceptsArgs: true,
       requireAuth: true,
       agentPromptGuidance: [
-        "Before installing any third-party skill, verify it first: run /phylax scan <folder> (or the clawphylax_scan tool) and report the hosts, uploads and credential-file reads it names. When asked where a skill sends data or why an unknown host was contacted, run /phylax hosts skill:<name> (or the clawphylax_hosts tool) and answer from the ledger.",
+        "Before installing any third-party skill, verify it first: run /phylax scan <folder> (or the clawphylax_scan tool) and report the hosts, uploads and credential-file reads it names. When asked where a skill sends data or why an unknown host was contacted, run /phylax hosts skill:<name> (or the clawphylax_hosts tool) and answer from the ledger. When a web request, API call or exec network command fails, run /phylax outlook <host> (or the clawphylax_outlook tool) before retrying: it says whether the host is blocking you, rate-limiting you, down, or whether the request itself is wrong, and how long to wait.",
       ],
       handler: async (ctx: any) => {
         try {
@@ -156,6 +170,9 @@ export default definePluginEntry({
           if (sub === "hosts" && arg) {
             return { text: renderHosts(core.ledger, arg) };
           }
+          if (sub === "outlook" && arg) {
+            return { text: renderOutlook(outlookFor(core.ledger, arg, 60)) };
+          }
           if (sub === "card" && arg) {
             return { text: renderCard(core.ledger, arg, "md") };
           }
@@ -167,7 +184,7 @@ export default definePluginEntry({
             }
             return { text: lines.join("\n") };
           }
-          return { text: "Usage: /phylax [report [24h]] | scan <folder> | hosts <origin> | card <origin>" };
+          return { text: "Usage: /phylax [report [24h]] | outlook <host> | scan <folder> | hosts <origin> | card <origin>" };
         } catch (err: any) {
           return { text: `ClawPhylax error: ${err?.message ?? err}` };
         }

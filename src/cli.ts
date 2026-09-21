@@ -1,6 +1,7 @@
 // `openclaw clawphylax …` — reads the ledger; does not need the Gateway.
 
 import { Ledger, defaultLedgerPath } from "./ledger.js";
+import { outlookFor, renderOutlook } from "./outlook.js";
 import { renderCard, renderHosts, renderRecent, renderSummary, summaryJson } from "./report.js";
 
 type Command = {
@@ -137,6 +138,23 @@ export function registerCli(program: Command, out: (s: string) => void = (s) => 
             out(JSON.stringify(e));
           }
         }
+      } finally {
+        l.close();
+      }
+    });
+
+  root
+    .command("outlook")
+    .description("Will a request to this host work? Diagnosis from observed requests: ok / blocked / rate-limited / site-error / unreachable")
+    .argument("<host>")
+    .option("--window <minutes>", "look-back window", "60")
+    .option("--json", "JSON output")
+    .option("--db <path>", "ledger path")
+    .action((host: string, opts: Record<string, unknown>) => {
+      const l = new Ledger(typeof opts.db === "string" ? opts.db : defaultLedgerPath());
+      try {
+        const o = outlookFor(l, host, Number(opts.window ?? 60));
+        out(opts.json ? JSON.stringify(o, null, 2) : renderOutlook(o));
       } finally {
         l.close();
       }

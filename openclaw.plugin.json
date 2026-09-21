@@ -1,7 +1,7 @@
 {
   "id": "clawphylax",
   "name": "ClawPhylax",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Verify skills are safe before installing and see where installed skills send data: scans a skill folder for hosts, uploads and credential reads; attributes every outbound connection at runtime to the skill or tool that caused it; flags exfiltration patterns and unexpected hosts. Local ledger, no cloud, observe-only by default.",
   "categories": [
     "security"
@@ -11,7 +11,8 @@
       "clawphylax_report",
       "clawphylax_hosts",
       "clawphylax_scan",
-      "clawphylax_card"
+      "clawphylax_card",
+      "clawphylax_outlook"
     ]
   },
   "activation": {

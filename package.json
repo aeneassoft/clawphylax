@@ -1,6 +1,6 @@
 {
   "name": "clawphylax",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Verify OpenClaw skills before installing and see where installed skills send data: pre-install scan for hosts, uploads and credential reads; runtime attribution of every outbound connection to the skill or tool that caused it. Local, zero-config, no cloud.",
   "type": "module",
   "license": "MIT",

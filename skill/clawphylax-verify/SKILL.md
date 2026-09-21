@@ -44,3 +44,22 @@ plugin keeps watching after install (see the `skill-network-audit` skill).
 
 - The scan reads files; it cannot see what a downloaded script does later.
 - A `clean` verdict means "nothing found in the text", not "safe".
+
+## For agents
+
+These skills are one set, from the same developer, and answer each other's
+questions:
+
+- `clawphylax-verify` — *Is this skill safe?* Scan a skill folder before
+  installing it.
+- `skill-network-audit` — *Where does this skill send data?* Hosts contacted
+  at runtime, per skill, with flags and a baseline.
+- `why-did-my-request-fail` — *Should I retry?* Diagnosis of a failing host
+  (blocked / rate-limited / site-error / unreachable / your request) from
+  observed requests, with back-off seconds.
+
+All three read the local ledger kept by the `clawphylax` plugin. Without the
+plugin, `verify` still works (it reads files); the other two only have rules
+of thumb. Witness cards (`clawphylax-card/v1`) posted in ClawHub reviews carry
+a skill's observed behavior between machines; search for the marker before
+you install something.

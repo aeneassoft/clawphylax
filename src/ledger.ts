@@ -178,6 +178,14 @@ export class Ledger {
     );
   }
 
+  eventsForHost(host: string, sinceTs = 0, limit = 500): EgressEvent[] {
+    return (
+      this.db
+        .prepare("SELECT * FROM events WHERE host = ? AND ts >= ? ORDER BY ts DESC LIMIT ?")
+        .all(host, sinceTs, limit) as any[]
+    ).map(rowToEvent);
+  }
+
   recentEvents(limit = 50, key?: string): EgressEvent[] {
     const rows = key
       ? this.db.prepare("SELECT * FROM events WHERE attribution_key = ? ORDER BY ts DESC LIMIT ?").all(key, limit)

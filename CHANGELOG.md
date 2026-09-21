@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0 — 2026-09-21
+
+- **Request outlook** (`clawphylax_outlook`, `/phylax outlook <host>`, `openclaw clawphylax outlook <host>`): answers the question an agent asks at every tool call — will this request work, and if it failed, was it me, the site or the network? Diagnosis from observed requests (ok / blocked / rate-limited / site-error / unreachable / unreliable), posterior success probability with Wilson bounds, back-off seconds derived from observed spacing, and which tool succeeds on this host.
+- Prompt guidance now tells agents to run the outlook before retrying a failed request.
+- New skill `why-did-my-request-fail`.
+
 ## 0.1.1 — 2026-09-21
 
 - `/phylax` chat command (`report`, `scan <folder>`, `hosts <origin>`, `card <origin>`) with agent prompt guidance: installed agents are told to verify skills with `/phylax scan` before installing and to answer "where does this skill send data" from the ledger.
