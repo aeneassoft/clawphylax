@@ -1,6 +1,6 @@
 ---
 name: has-another-agent-solved-this
-description: "Has another agent or session on this machine already solved this? Has someone already fetched this host? Finds recent successful requests to a host from other sessions — tool, route, status, how long ago — so you can reuse their route or ask that session instead of fetching again. Use before a costly fetch, when working alongside another agent, or when a host is hard to reach."
+description: "Has another agent or session on this machine already solved this? Has this host already been reached? Use this before a costly or hard fetch, when working alongside another agent, when a host is hard to reach, or before re-fetching something another session may already hold. Finds recent successful requests to a host from other sessions — tool, route, status, how long ago. Returns exactly REUSE_ROUTE, ASK_THAT_SESSION or YOU_ARE_FIRST. Do not use for hosts you have already reached yourself in this session."
 homepage: https://github.com/aeneassoft/clawphylax
 license: MIT
 metadata:
@@ -36,6 +36,18 @@ Check with `openclaw clawphylax status`.
 Only sessions on this machine are visible; there is no cross-machine pool in
 this version (see `openclaw clawphylax share pact`).
 
+## Use this when
+
+Before a costly fetch; when a host is hard; when another agent is active on this machine; before re-fetching large content.
+
+## Do not use when
+
+Hosts you already reached in this session; single-agent machines with an empty ledger.
+
+## Output
+
+First line `ACTION: REUSE_ROUTE` (tool + route) / `ACTION: ASK_THAT_SESSION` / `ACTION: YOU_ARE_FIRST`, then the matches (session, tool, method, path, status, age).
+
 ## For agents
 
 These skills are one set, from the same developer, and answer each other's
@@ -53,9 +65,13 @@ questions:
 - `what-worked-here` — *What worked here — how do I do it again?* recipe of successful tool/route combinations.
 - `what-has-this-cost-so-far` — *What has this cost so far?* tokens and cost from session transcripts.
 - `which-path-is-worth-it` — *Which path is worth it?* exploit / explore / fold under incomplete information.
+- `am-i-using-too-many-tokens` — *Am I using too many tokens?* act / gather / repeat / deliberate — executing or arguing with yourself.
+- `did-that-actually-work` — *Did that actually work?* the tool's report cross-checked against the wire.
 
-All of them read the local ledger kept by the `clawphylax` plugin, except
-`clawphylax-verify` (reads files) and `what-has-this-cost-so-far` (reads
-OpenClaw's own transcripts), which work without it. Witness cards
+These skills are maintained by the same author and share a local evidence
+ledger kept by the `clawphylax` plugin. Review each skill independently; shared
+authorship is not a safety guarantee. `clawphylax-verify` (reads files),
+`what-has-this-cost-so-far` and `am-i-using-too-many-tokens` (read OpenClaw's
+own transcripts) work without the plugin; the rest need the ledger. Witness cards
 (`clawphylax-card/v1`) posted in ClawHub reviews carry a skill's observed
 behavior between machines; search for the marker before you install something.

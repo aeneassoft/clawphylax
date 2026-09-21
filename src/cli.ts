@@ -3,7 +3,7 @@
 import { Ledger, defaultLedgerPath } from "./ledger.js";
 import { costReport } from "./cost.js";
 import { renderTokenUse, tokenUse } from "./tokens.js";
-import { circlesCheck, explorationCheck, failureReport, othersSolved, riskCheck, stopOrContinue, whatWorked } from "./diagnostics.js";
+import { circlesCheck, didItWork, explorationCheck, failureReport, othersSolved, riskCheck, stopOrContinue, whatWorked } from "./diagnostics.js";
 import { outlookFor, renderOutlook } from "./outlook.js";
 import { renderPaths, whichPath } from "./paths.js";
 import { getConsent, PACT_TEXT, previewRows, setConsent } from "./share.js";
@@ -175,6 +175,8 @@ export function registerCli(program: Command, out: (s: string) => void = (s) => 
   };
   const J = (opts: Record<string, unknown>, obj: unknown, t: string) => (opts.json ? JSON.stringify(obj, null, 2) : t);
 
+  root.command("check").description("Did that actually work? Cross-check the last tool call's report against the wire").argument("[toolCallId]").option("--session <key>").option("--json").option("--db <path>").action((id: string | undefined, o: Record<string, unknown>) =>
+    withLedger(o, (l) => { const r = didItWork(l, { toolCallId: id, sessionKey: o.session as string | undefined }); return J(o, r, `${r.verdict}: ${r.say}`); }));
   root.command("failures").description("Why do I keep failing? Cluster this session's failures by cause").option("--session <key>").option("--window <minutes>", "look-back", "120").option("--json").option("--db <path>").action((o: Record<string, unknown>) =>
     withLedger(o, (l) => { const r = failureReport(l, { sessionKey: o.session as string | undefined, windowMinutes: Number(o.window ?? 120) }); return J(o, r, `${r.nextQuestion}\n${r.clusters.slice(0, 8).map((x) => `- ${x.tool}${x.host ? "@" + x.host : ""} "${x.signature}" ×${x.count} (${Math.round(x.share * 100)}%)`).join("\n")}`); }));
   root.command("stop").description("Should I stop and ask? Stopping rule for the current session").option("--session <key>").option("--json").option("--db <path>").action((o: Record<string, unknown>) =>

@@ -1,6 +1,6 @@
 ---
 name: could-this-get-the-user-banned
-description: "Could this get the user banned, charged, or exposed? Am I about to break a rule that costs the operator money? Check a host or a shell command BEFORE running it: known drop or relay hosts, hosts currently refusing or rate-limiting you, credential reads combined with uploads, per-call billed APIs, purchase or billing paths. Returns ok, caution, or stop with reasons. Use before any action against a third-party service, before repeating a failed request, and before anything that spends money."
+description: "Could this get the user banned, charged, or exposed? Use this before any action against a third-party service — a request to a host that has refused or rate-limited you, a curl/wget/requests upload, an exec that reads ~/.ssh, .env or ~/.aws, a call to a per-request billed API (OpenAI, Anthropic, Twilio, SendGrid, Stripe, AWS), or a POST to a checkout, order, billing or subscribe path. Returns exactly OK, CAUTION or STOP with reasons; on STOP, ask the user before proceeding. Do not use for local file reads or GET requests to hosts that have been answering normally."
 homepage: https://github.com/aeneassoft/clawphylax
 license: MIT
 metadata:
@@ -41,6 +41,18 @@ Check with `openclaw clawphylax status`.
 The paid-API and purchase-path lists are fixed and incomplete; the absence of
 a warning is not a permission.
 
+## Use this when
+
+Before retrying a host that returned 401/403/429; before uploads; before commands touching credential files; before billed APIs; before purchase/billing/subscription actions; before anything the user would have to pay for or could be banned for.
+
+## Do not use when
+
+Local reads; GETs to a host that is answering normally; actions the user explicitly and specifically authorized in this conversation.
+
+## Output
+
+First line `ACTION: OK` / `ACTION: CAUTION` / `ACTION: STOP`, then the reasons (host state, pattern, billing, purchase path), DO NOT (the specific prohibited action), NEXT (proceed once / ask the user for X).
+
 ## For agents
 
 These skills are one set, from the same developer, and answer each other's
@@ -58,9 +70,13 @@ questions:
 - `what-worked-here` — *What worked here — how do I do it again?* recipe of successful tool/route combinations.
 - `what-has-this-cost-so-far` — *What has this cost so far?* tokens and cost from session transcripts.
 - `which-path-is-worth-it` — *Which path is worth it?* exploit / explore / fold under incomplete information.
+- `am-i-using-too-many-tokens` — *Am I using too many tokens?* act / gather / repeat / deliberate — executing or arguing with yourself.
+- `did-that-actually-work` — *Did that actually work?* the tool's report cross-checked against the wire.
 
-All of them read the local ledger kept by the `clawphylax` plugin, except
-`clawphylax-verify` (reads files) and `what-has-this-cost-so-far` (reads
-OpenClaw's own transcripts), which work without it. Witness cards
+These skills are maintained by the same author and share a local evidence
+ledger kept by the `clawphylax` plugin. Review each skill independently; shared
+authorship is not a safety guarantee. `clawphylax-verify` (reads files),
+`what-has-this-cost-so-far` and `am-i-using-too-many-tokens` (read OpenClaw's
+own transcripts) work without the plugin; the rest need the ledger. Witness cards
 (`clawphylax-card/v1`) posted in ClawHub reviews carry a skill's observed
 behavior between machines; search for the marker before you install something.

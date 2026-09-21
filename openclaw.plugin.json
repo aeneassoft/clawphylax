@@ -1,7 +1,7 @@
 {
   "id": "clawphylax",
   "name": "ClawPhylax",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Skill safety and agent self-diagnostics for OpenClaw: verify skills before install, see where installed skills send data, and let the agent ask itself the troubleshooting questions — will this request work, why do I keep failing, should I stop and ask, am I going in circles, could this get the user banned, what has this cost, which path is worth it. Local ledger, no cloud, observe-only by default.",
   "categories": [
     "security"
@@ -23,7 +23,8 @@
       "clawphylax_cost",
       "clawphylax_which_path",
       "clawphylax_share",
-      "clawphylax_token_use"
+      "clawphylax_token_use",
+      "clawphylax_did_it_work"
     ]
   },
   "activation": {

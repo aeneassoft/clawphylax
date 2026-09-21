@@ -1,6 +1,6 @@
 ---
 name: what-worked-here
-description: "What worked here, and how do I do it again? What is the edge I found on this host and is it replicable? Ranks the tool, method and route combinations that succeeded on a host with confidence bounds and latency, and returns a recipe to turn into a workspace skill or a witness card. Use after you finally succeed on a difficult host, or when asked to make a result repeatable."
+description: "What worked here, and how do I do it again? Which tool and route succeeded on this host, and is it repeatable? Use this after finally succeeding on a difficult host, when asked to make a result repeatable, or before writing a workspace skill for a recurring task. Ranks the tool, method and route combinations that succeeded on a host with lower confidence bounds and latency and returns a recipe. Returns exactly WRITE_SKILL, POST_WITNESS_CARD or NOTHING_PROVEN_YET. Do not use on hosts with fewer than three observed requests."
 homepage: https://github.com/aeneassoft/clawphylax
 license: MIT
 metadata:
@@ -38,6 +38,18 @@ Check with `openclaw clawphylax status`.
 Routes are grouped by the first two path segments; deeper differences are
 not distinguished. Sequences across several calls are not recorded.
 
+## Use this when
+
+After a hard-won success; when asked to make something repeatable; before creating a workspace skill; when a card for other agents would help.
+
+## Do not use when
+
+Hosts with fewer than three observations; one-off tasks nobody will repeat.
+
+## Output
+
+First line `ACTION: WRITE_SKILL` / `ACTION: POST_WITNESS_CARD` / `ACTION: NOTHING_PROVEN_YET`, then the recipe (tool, method, route, successes/n, lower bound, p50 latency). Ask the user before writing a skill or posting a card.
+
 ## For agents
 
 These skills are one set, from the same developer, and answer each other's
@@ -55,9 +67,13 @@ questions:
 - `what-worked-here` — *What worked here — how do I do it again?* recipe of successful tool/route combinations.
 - `what-has-this-cost-so-far` — *What has this cost so far?* tokens and cost from session transcripts.
 - `which-path-is-worth-it` — *Which path is worth it?* exploit / explore / fold under incomplete information.
+- `am-i-using-too-many-tokens` — *Am I using too many tokens?* act / gather / repeat / deliberate — executing or arguing with yourself.
+- `did-that-actually-work` — *Did that actually work?* the tool's report cross-checked against the wire.
 
-All of them read the local ledger kept by the `clawphylax` plugin, except
-`clawphylax-verify` (reads files) and `what-has-this-cost-so-far` (reads
-OpenClaw's own transcripts), which work without it. Witness cards
+These skills are maintained by the same author and share a local evidence
+ledger kept by the `clawphylax` plugin. Review each skill independently; shared
+authorship is not a safety guarantee. `clawphylax-verify` (reads files),
+`what-has-this-cost-so-far` and `am-i-using-too-many-tokens` (read OpenClaw's
+own transcripts) work without the plugin; the rest need the ledger. Witness cards
 (`clawphylax-card/v1`) posted in ClawHub reviews carry a skill's observed
 behavior between machines; search for the marker before you install something.

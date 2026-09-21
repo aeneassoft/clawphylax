@@ -96,9 +96,14 @@ export function renderRecent(ledger: Ledger, limit: number, key?: string): strin
 
 /** One line for the agent reply: only when something is worth a look. */
 export function renderRunFooter(events: EgressEvent[]): string | undefined {
+  const silent = events.filter((e) => e.source === "inproc" && e.attribution.toolCallId && (typeof e.status !== "number" || e.status >= 400));
   const external = events.filter((e) => e.category !== "model" && e.category !== "local" && e.category !== "channel");
-  if (!external.length) {
+  if (!external.length && !silent.length) {
     return undefined;
+  }
+  if (!external.length) {
+    const f = silent[0];
+    return `🛡 ClawPhylax: STOP CONDITION — ${f.attribution.toolName ?? "a tool"} made ${f.method} ${f.host} which returned ${typeof f.status === "number" ? f.status : "no response"}. Do not build on that result; run /phylax check.`;
   }
   const suspicious = external.filter(
     (e) => e.category === "suspicious" || e.flags.includes("sensitive-read") || e.flags.includes("unexpected-host") || e.blocked,
@@ -141,7 +146,7 @@ export function renderCard(ledger: Ledger, key: string, format: "json" | "md" = 
     hosts: hosts.map((h) => ({ host: h.host, count: h.count })),
     flagged: flagged.slice(0, 10).map((e) => ({ host: e.host, method: e.method, via: e.source, flags: e.flags.filter((f) => f !== "new-host") })),
     platform: process.platform,
-    plugin: "clawphylax@0.3.1",
+    plugin: "clawphylax@0.4.0",
   };
   if (format === "json") {
     return JSON.stringify(card, null, 2);

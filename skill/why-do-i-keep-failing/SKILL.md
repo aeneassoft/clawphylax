@@ -1,6 +1,6 @@
 ---
 name: why-do-i-keep-failing
-description: "Why do I keep failing? What is the pattern behind my errors? Clusters this session's failed tool calls and failed requests by tool, host and error signature, says which single cause explains most of them, and returns a compact trail of the last failures to reason about. Use when errors pile up, before retrying, or when the same error keeps coming back."
+description: "Why do I keep failing? What is the pattern behind my errors? Use this when errors pile up — three or more failed tool calls (exec, write, web_fetch, API) in a session — before retrying anything. Clusters this session's failed tool calls and failed requests by tool, host and error signature, names the single cause behind most of them with its share, and returns a compact trail of the last failures to reason about. Returns FIX_DOMINANT_CAUSE, HOLD_APPROACH_VARY_ONE_INPUT or NO_TOOL_FAILURES. Do not use for a single failure — use why-did-my-request-fail for a failing host."
 homepage: https://github.com/aeneassoft/clawphylax
 license: MIT
 metadata:
@@ -37,6 +37,18 @@ Check with `openclaw clawphylax status`.
 Only tool calls and in-process requests are recorded; a failure inside a
 child process shows up as the exec tool's error text.
 
+## Use this when
+
+Three or more failures in a session; the same error keeps returning; before yet another retry.
+
+## Do not use when
+
+A single failure (use `why-did-my-request-fail` if it was a request). Failures the user already explained.
+
+## Output
+
+First line `ACTION: FIX_DOMINANT_CAUSE` (with the cause and its share) / `ACTION: HOLD_APPROACH_VARY_ONE_INPUT` / `ACTION: NO_TOOL_FAILURES`, then the clusters (tool, host, signature, count), then the trail (time, tool, hint, error). Report one cause to the user, not every error.
+
 ## For agents
 
 These skills are one set, from the same developer, and answer each other's
@@ -54,9 +66,13 @@ questions:
 - `what-worked-here` — *What worked here — how do I do it again?* recipe of successful tool/route combinations.
 - `what-has-this-cost-so-far` — *What has this cost so far?* tokens and cost from session transcripts.
 - `which-path-is-worth-it` — *Which path is worth it?* exploit / explore / fold under incomplete information.
+- `am-i-using-too-many-tokens` — *Am I using too many tokens?* act / gather / repeat / deliberate — executing or arguing with yourself.
+- `did-that-actually-work` — *Did that actually work?* the tool's report cross-checked against the wire.
 
-All of them read the local ledger kept by the `clawphylax` plugin, except
-`clawphylax-verify` (reads files) and `what-has-this-cost-so-far` (reads
-OpenClaw's own transcripts), which work without it. Witness cards
+These skills are maintained by the same author and share a local evidence
+ledger kept by the `clawphylax` plugin. Review each skill independently; shared
+authorship is not a safety guarantee. `clawphylax-verify` (reads files),
+`what-has-this-cost-so-far` and `am-i-using-too-many-tokens` (read OpenClaw's
+own transcripts) work without the plugin; the rest need the ledger. Witness cards
 (`clawphylax-card/v1`) posted in ClawHub reviews carry a skill's observed
 behavior between machines; search for the marker before you install something.

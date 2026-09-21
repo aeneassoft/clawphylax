@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0 — 2026-09-21
+
+- **Did that actually work?** (`clawphylax_did_it_work`, `/phylax check`, `openclaw clawphylax check`): cross-checks what a tool reported against what the wire showed for the same tool call — CONFIRMED / SILENT_FAILURE / UNVERIFIED / FAILED, with the mismatch named. The reply footer now raises a STOP CONDITION on silent failures. New skill `did-that-actually-work`.
+- **Decision records.** Outlook, stop rule and did-it-work answer ACTION-first (ACTION / EVIDENCE / DO NOT / NEXT / CONFIDENCE / SCOPE), the shape a model acts on rather than summarises.
+- **Descriptions and guidance rewritten** after consulting OpenAI's gpt-5.6 on how OpenAI-driven agents select and follow tools: trigger first, tool names and status codes, an exact action contract, negative routing; the prompt guidance now requires following the returned ACTION. (See OPENAI_ANTWORT_ANNOTIERT.md in the workspace.)
+- Provenance sentence in every skill's "For agents" section: shared authorship is not a safety guarantee; review each skill independently.
+
 ## 0.3.1 — 2026-09-21
 
 - **Token use** (`clawphylax_token_use`, `/phylax tokens`, `openclaw clawphylax tokens`): am I using too many tokens — and am I spending them to refute myself or to put the task into practice? Assistant turns classified act / gather / repeat / deliberate from the transcript, output tokens attributed, deliberation streaks and repeated identical calls → executing / deliberating / churning. Works without the ledger. New skill `am-i-using-too-many-tokens`.

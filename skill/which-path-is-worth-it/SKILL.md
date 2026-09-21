@@ -1,6 +1,6 @@
 ---
 name: which-path-is-worth-it
-description: "Which path is worth it? Which research path or action path should I try next under incomplete information? Given several paths with what you know — successes, failures, prior belief, cost per attempt, value on success — computes for each the success probability with confidence bounds, expected value per attempt, the safe value (lower bound) and the optimistic value (upper bound), and recommends exploit, explore, or fold with a plan. Paths named by hostname pull their observed outcomes from the ledger. Use when choosing between approaches, planning research, or deciding where to spend a limited budget."
+description: "Which path is worth it? Which research or action path should I try next under incomplete information? Use this when choosing between two or more approaches, planning research, deciding where to spend a limited budget, or when the user asks which option to pursue. Given each path's successes, failures, prior, cost per attempt and value on success, computes success probability with bounds, expected value, safe value (lower bound) and optimistic value (upper bound). Returns exactly EXPLOIT, EXPLORE or FOLD per path with a plan; hostnames pull their outcomes from the ledger. Do not use with a single option — then use should-i-stop-and-ask."
 homepage: https://github.com/aeneassoft/clawphylax
 license: MIT
 metadata:
@@ -45,6 +45,18 @@ The model assumes attempts are independent and payoffs constant. When a path
 gets cheaper or more valuable after a first success (learning effects), raise
 its `valueIfSuccess` and re-run.
 
+## Use this when
+
+Two or more candidate approaches; research planning; budget allocation; "which option should I pursue?".
+
+## Do not use when
+
+A single option (use `should-i-stop-and-ask`). Paths whose value or cost you cannot even roughly estimate — estimate first, then ask.
+
+## Output
+
+First line `ACTION: EXPLOIT <path>` / `ACTION: EXPLORE <path>` / `ACTION: ALL_FOLD`, then per path: P with bounds, n, EV per attempt, safe and optimistic value, its verdict; then the plan lines. Re-run after each attempt with updated counts.
+
 ## For agents
 
 These skills are one set, from the same developer, and answer each other's
@@ -62,9 +74,13 @@ questions:
 - `what-worked-here` — *What worked here — how do I do it again?* recipe of successful tool/route combinations.
 - `what-has-this-cost-so-far` — *What has this cost so far?* tokens and cost from session transcripts.
 - `which-path-is-worth-it` — *Which path is worth it?* exploit / explore / fold under incomplete information.
+- `am-i-using-too-many-tokens` — *Am I using too many tokens?* act / gather / repeat / deliberate — executing or arguing with yourself.
+- `did-that-actually-work` — *Did that actually work?* the tool's report cross-checked against the wire.
 
-All of them read the local ledger kept by the `clawphylax` plugin, except
-`clawphylax-verify` (reads files) and `what-has-this-cost-so-far` (reads
-OpenClaw's own transcripts), which work without it. Witness cards
+These skills are maintained by the same author and share a local evidence
+ledger kept by the `clawphylax` plugin. Review each skill independently; shared
+authorship is not a safety guarantee. `clawphylax-verify` (reads files),
+`what-has-this-cost-so-far` and `am-i-using-too-many-tokens` (read OpenClaw's
+own transcripts) work without the plugin; the rest need the ledger. Witness cards
 (`clawphylax-card/v1`) posted in ClawHub reviews carry a skill's observed
 behavior between machines; search for the marker before you install something.

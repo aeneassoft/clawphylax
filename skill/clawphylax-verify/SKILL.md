@@ -1,6 +1,6 @@
 ---
 name: clawphylax-verify
-description: "Is this skill safe? Verify a third-party skill is safe before installing it: scan the skill folder for every network host its SKILL.md and scripts contact, whether they upload data, and whether they read credential files (~/.ssh, .env, ~/.aws). Returns clean, review or suspicious with file and line. Use before installing any untrusted ClawHub skill, when asked whether a skill is safe, or to check a skill for exfiltration or malware patterns."
+description: "Is this skill safe? Use this before installing any third-party ClawHub skill or running its scripts, and whenever the user asks whether a skill is safe. Inspects every file in the skill folder — SKILL.md and scripts — and reports every network host contacted, whether data or files are uploaded (curl -d/-T, requests.post, scp), and whether credential paths such as ~/.ssh, .env or ~/.aws are read. Returns exactly CLEAN, REVIEW or SUSPICIOUS with file and line; do not recommend installation on SUSPICIOUS. Do not use to judge a running skill's behavior — use skill-network-audit for that."
 homepage: https://github.com/aeneassoft/clawphylax
 license: MIT
 metadata:
@@ -45,6 +45,17 @@ plugin keeps watching after install (see the `skill-network-audit` skill).
 - The scan reads files; it cannot see what a downloaded script does later.
 - A `clean` verdict means "nothing found in the text", not "safe".
 
+## Use this when
+
+Before `openclaw skills install <slug>` of any third-party skill; when the user asks "is this skill safe?"; when a skill's scripts are about to run for the first time.
+
+## Do not use when
+
+For what an already-installed skill actually did at runtime (use `skill-network-audit`). For deciding whether a remote service is trustworthy — a file scan cannot see what a server does after contact.
+
+## Output
+
+First line `ACTION: INSTALL_OK` / `ACTION: REVIEW_WITH_USER` / `ACTION: DO_NOT_INSTALL`, then the hosts by name, then each finding as file:line. On SUSPICIOUS, tell the user the finding; do not soften it.
 
 ## For agents
 
@@ -63,9 +74,13 @@ questions:
 - `what-worked-here` — *What worked here — how do I do it again?* recipe of successful tool/route combinations.
 - `what-has-this-cost-so-far` — *What has this cost so far?* tokens and cost from session transcripts.
 - `which-path-is-worth-it` — *Which path is worth it?* exploit / explore / fold under incomplete information.
+- `am-i-using-too-many-tokens` — *Am I using too many tokens?* act / gather / repeat / deliberate — executing or arguing with yourself.
+- `did-that-actually-work` — *Did that actually work?* the tool's report cross-checked against the wire.
 
-All of them read the local ledger kept by the `clawphylax` plugin, except
-`clawphylax-verify` (reads files) and `what-has-this-cost-so-far` (reads
-OpenClaw's own transcripts), which work without it. Witness cards
+These skills are maintained by the same author and share a local evidence
+ledger kept by the `clawphylax` plugin. Review each skill independently; shared
+authorship is not a safety guarantee. `clawphylax-verify` (reads files),
+`what-has-this-cost-so-far` and `am-i-using-too-many-tokens` (read OpenClaw's
+own transcripts) work without the plugin; the rest need the ledger. Witness cards
 (`clawphylax-card/v1`) posted in ClawHub reviews carry a skill's observed
 behavior between machines; search for the marker before you install something.

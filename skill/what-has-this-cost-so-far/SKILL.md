@@ -1,6 +1,6 @@
 ---
 name: what-has-this-cost-so-far
-description: "What has this task cost so far? Why is my OpenClaw bill so high? How much did the agent spend in tokens? Reads OpenClaw's own session transcripts and reports tokens and provider cost per session, per model and per tool call, over a time window — no plugin needed. Use before deciding whether another attempt is worth it, when the user asks about cost, or to find the most expensive session."
+description: "What has this task cost so far? Why is my OpenClaw bill so high? How many tokens has the agent used? Use this before deciding whether another attempt is worth it, when the user asks about cost or tokens, when a task has run for a long time, or to find the most expensive session. Reads OpenClaw's own session transcripts and reports tokens and provider cost per session, per model and per tool call — no plugin ledger needed. Returns the totals and WORTH_ANOTHER_ATTEMPT or ASK_BEFORE_SPENDING_MORE. Do not use for per-request network bytes — that needs the ledger."
 homepage: https://github.com/aeneassoft/clawphylax
 license: MIT
 metadata:
@@ -33,6 +33,18 @@ reads the transcripts directly.
 Cost is only present when the provider reports it; local models report
 tokens but no cost. Network bytes per skill need the plugin's ledger.
 
+## Use this when
+
+Before another expensive attempt; when the user asks about cost or tokens; after a long task; to find the most expensive session.
+
+## Do not use when
+
+Network bytes per host or skill (use `skill-network-audit`). Providers that report no usage will show tokens only.
+
+## Output
+
+First line `ACTION: WORTH_ANOTHER_ATTEMPT` / `ACTION: ASK_BEFORE_SPENDING_MORE`, then totals (sessions, tokens, cost, tool calls, cost per tool call) and the most expensive session. Give the user the number.
+
 ## For agents
 
 These skills are one set, from the same developer, and answer each other's
@@ -50,9 +62,13 @@ questions:
 - `what-worked-here` — *What worked here — how do I do it again?* recipe of successful tool/route combinations.
 - `what-has-this-cost-so-far` — *What has this cost so far?* tokens and cost from session transcripts.
 - `which-path-is-worth-it` — *Which path is worth it?* exploit / explore / fold under incomplete information.
+- `am-i-using-too-many-tokens` — *Am I using too many tokens?* act / gather / repeat / deliberate — executing or arguing with yourself.
+- `did-that-actually-work` — *Did that actually work?* the tool's report cross-checked against the wire.
 
-All of them read the local ledger kept by the `clawphylax` plugin, except
-`clawphylax-verify` (reads files) and `what-has-this-cost-so-far` (reads
-OpenClaw's own transcripts), which work without it. Witness cards
+These skills are maintained by the same author and share a local evidence
+ledger kept by the `clawphylax` plugin. Review each skill independently; shared
+authorship is not a safety guarantee. `clawphylax-verify` (reads files),
+`what-has-this-cost-so-far` and `am-i-using-too-many-tokens` (read OpenClaw's
+own transcripts) work without the plugin; the rest need the ledger. Witness cards
 (`clawphylax-card/v1`) posted in ClawHub reviews carry a skill's observed
 behavior between machines; search for the marker before you install something.

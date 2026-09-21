@@ -14,7 +14,8 @@ import { CLI_DESCRIPTOR, registerCli, sinceMs } from "./cli.js";
 import { scanSkillFolder } from "./install-scan.js";
 import { costReport } from "./cost.js";
 import { renderTokenUse, tokenUse } from "./tokens.js";
-import { circlesCheck, explorationCheck, failureReport, othersSolved, riskCheck, stopOrContinue, whatWorked } from "./diagnostics.js";
+import { circlesCheck, didItWork, explorationCheck, failureReport, othersSolved, riskCheck, stopOrContinue, whatWorked } from "./diagnostics.js";
+import { renderRecord, SCOPE_LOCAL } from "./record.js";
 import { outlookFor, renderOutlook } from "./outlook.js";
 import { renderPaths, whichPath, type PathInput } from "./paths.js";
 import { getConsent, PACT_TEXT, previewRows, setConsent } from "./share.js";
@@ -120,12 +121,50 @@ export default definePluginEntry({
       }),
       async execute(_id: string, params: { host: string; windowMinutes?: number }) {
         const o = outlookFor(core.ledger, params.host, params.windowMinutes ?? 60);
-        return { content: [{ type: "text", text: renderOutlook(o) }], details: o };
+        return { content: [{ type: "text", text: outlookRecord(o) + "\n" + renderOutlook(o) }], details: o };
       },
     });
 
     // ---- Self-diagnostics: the questions an agent asks itself while troubleshooting.
     const text = (t: string, details: unknown) => ({ content: [{ type: "text", text: t }], details });
+    const pct = (x: number) => `${Math.round(x * 100)}%`;
+    const outlookRecord = (o: ReturnType<typeof outlookFor>) =>
+      renderRecord({
+        action: ({ ok: "RETRY_AFTER_FIXING_REQUEST", blocked: "STOP", "rate-limited": "BACKOFF", "site-error": "BACKOFF", unreachable: "BACKOFF", unreliable: "SWITCH_TOOL", "no-history": "TRY_ONCE" } as Record<string, string>)[o.diagnosis],
+        evidence: `${o.host}: ${o.successes}/${o.n} succeeded${o.windowMinutes ? ` in ${o.windowMinutes} min` : " all-time"}; recent statuses ${o.recentStatuses.join(" ")}${o.byTool.length > 1 ? `; by tool ${o.byTool.map((t) => `${t.tool} ${t.successes}/${t.n}`).join(", ")}` : ""}`,
+        doNot: o.diagnosis === "blocked" ? `retry ${o.host} with the same tool or credentials` : o.diagnosis === "rate-limited" ? `send parallel or immediate requests to ${o.host}` : o.diagnosis === "site-error" || o.diagnosis === "unreachable" ? "reword the request; the host, not the request, is failing" : o.diagnosis === "unreliable" ? `keep using the failing tool on ${o.host}` : undefined,
+        next: o.recommendation + (o.backoffSeconds ? ` Wait ${o.backoffSeconds}s first.` : "") + (o.bestTool ? ` Prefer ${o.bestTool}.` : ""),
+        confidence: o.n ? `P(next attempt succeeds) ≈ ${pct(o.pNext)}, 95% bounds ${pct(o.pLower)}–${pct(o.pUpper)}, ${o.confidence}` : "none yet",
+        scope: `${o.host}, ${SCOPE_LOCAL}`,
+      });
+    const stopRecord = (r: ReturnType<typeof stopOrContinue>) =>
+      renderRecord({
+        action: r.verdict.toUpperCase().replace(/-/g, "_"),
+        evidence: `${r.successes}/${r.attempts} tool calls succeeded across ${r.distinctApproaches} approach(es) in ${r.minutesElapsed} min; last success ${r.lastSuccessAgoAttempts === null ? "never" : r.lastSuccessAgoAttempts + " attempt(s) ago"}${r.blockedHosts.length ? `; refusing hosts: ${r.blockedHosts.join(", ")}` : ""}`,
+        doNot: r.verdict === "stop-and-ask" ? "continue silently or retry the same approach" : r.verdict === "change-approach" ? "repeat the same tool and route" : undefined,
+        next: r.say,
+        confidence: r.attempts ? `success-rate upper bound ${pct(r.successUpper)}` : "none yet",
+        scope: SCOPE_LOCAL,
+      });
+    api.registerTool({
+      name: "clawphylax_did_it_work",
+      description:
+        "Did that actually work? Use this after any tool call whose effect matters — an exec, a write, a POST, a message, a fetch — before building on its result. Cross-checks what the tool reported (ok/error) against what the wire showed for that same tool call: status codes, empty bodies, unsent uploads. Returns exactly one of CONFIRMED, SILENT_FAILURE, UNVERIFIED, FAILED, with the mismatch named. Do not use for reads you will not act on.",
+      parameters: Type.Object({ toolCallId: Type.Optional(Type.String({ description: "Defaults to the last non-diagnostic tool call in this session." })), sessionKey: Type.Optional(Type.String()) }),
+      async execute(_id: string, p: { toolCallId?: string; sessionKey?: string }) {
+        const r = didItWork(core.ledger, { toolCallId: p?.toolCallId, sessionKey: p?.sessionKey ?? core.lastSessionKey });
+        return text(
+          renderRecord({
+            action: r.verdict === "CONFIRMED" ? "BUILD_ON_IT" : r.verdict === "SILENT_FAILURE" ? "TREAT_AS_NOT_DONE" : r.verdict === "UNVERIFIED" ? "VERIFY_DIRECTLY" : r.verdict === "FAILED" ? "FIX_THEN_RETRY" : "NONE",
+            evidence: `${r.tool ?? "no tool"} reported ${r.reported}${r.hint ? ` (${r.hint.slice(0, 80)})` : ""}; wire: ${r.observed.length ? r.observed.map((o) => `${o.method} ${o.host} → ${o.status ?? "no response"}${typeof o.bytesIn === "number" ? ` ${o.bytesIn}B` : ""}`).join(", ") : "no observable request"}`,
+            doNot: r.verdict === "SILENT_FAILURE" ? "proceed as if the action succeeded" : r.verdict === "UNVERIFIED" ? "assume the effect happened" : undefined,
+            next: r.say,
+            scope: SCOPE_LOCAL,
+          }),
+          r,
+        );
+      },
+    });
     api.registerTool({
       name: "clawphylax_failures",
       description: "Why do I keep failing? Clusters this session's failed tool calls and failed requests by tool, host and error signature, says which single cause explains most of them, and returns a compact trail of the last failures for you to reason about. Use when errors pile up and you are about to retry.",
@@ -141,7 +180,7 @@ export default definePluginEntry({
       parameters: Type.Object({ sessionKey: Type.Optional(Type.String()), windowMinutes: Type.Optional(Type.Number()) }),
       async execute(_id: string, p: { sessionKey?: string; windowMinutes?: number }) {
         const r = stopOrContinue(core.ledger, { sessionKey: p?.sessionKey ?? core.lastSessionKey, windowMinutes: p?.windowMinutes });
-        return text(`${r.verdict.toUpperCase()}: ${r.say}`, r);
+        return text(stopRecord(r), r);
       },
     });
     api.registerTool({
@@ -290,7 +329,7 @@ export default definePluginEntry({
       acceptsArgs: true,
       requireAuth: true,
       agentPromptGuidance: [
-        "Before installing any third-party skill, verify it first: run /phylax scan <folder> (or the clawphylax_scan tool) and report the hosts, uploads and credential-file reads it names. When asked where a skill sends data or why an unknown host was contacted, run /phylax hosts skill:<name> (or the clawphylax_hosts tool) and answer from the ledger. When a web request, API call or exec network command fails, run /phylax outlook <host> (or the clawphylax_outlook tool) before retrying: it says whether the host is blocking you, rate-limiting you, down, or whether the request itself is wrong, and how long to wait. When errors pile up, /phylax failures groups them by cause; when a task drags on, /phylax stop says whether to continue, change approach, or stop and ask the user; /phylax circles tells you if you are repeating yourself; /phylax risk <host or command> checks before an action whether it could get the user banned or charged; /phylax tokens says whether your tokens go into acting or into arguing with yourself.",
+        "Before installing any third-party skill, run clawphylax_scan on it; before retrying a failed request, run clawphylax_outlook on the host; when a task repeats, stalls, or produces no new evidence, run clawphylax_stop_or_continue; after any action whose effect matters, run clawphylax_did_it_work before building on the result. Before any action that could expose data, incur cost, change external state, or risk an account restriction, run clawphylax_risk_check; follow the returned ACTION and do not repeat an approach it prohibits.",
       ],
       handler: async (ctx: any) => {
         try {
@@ -308,6 +347,10 @@ export default definePluginEntry({
           }
           if (sub === "outlook" && arg) {
             return { text: renderOutlook(outlookFor(core.ledger, arg, 60)) };
+          }
+          if (sub === "check" || sub === "didit") {
+            const r = didItWork(core.ledger, { toolCallId: arg || undefined, sessionKey: ctx?.sessionKey ?? core.lastSessionKey });
+            return { text: `${r.verdict}: ${r.say}` };
           }
           if (sub === "failures") {
             const r = failureReport(core.ledger, { sessionKey: ctx?.sessionKey ?? core.lastSessionKey });
@@ -369,7 +412,7 @@ export default definePluginEntry({
             }
             return { text: lines.join("\n") };
           }
-          return { text: "Usage: /phylax [report [24h]] | outlook <host> | failures | stop | circles | explore | risk <host|command> | others <host> | worked <host> | cost [minutes] | tokens [minutes] | paths <json> | scan <folder> | hosts <origin> | card <origin> | share [pact|on|off]" };
+          return { text: "Usage: /phylax [report [24h]] | outlook <host> | check [toolCallId] | failures | stop | circles | explore | risk <host|command> | others <host> | worked <host> | cost [minutes] | tokens [minutes] | paths <json> | scan <folder> | hosts <origin> | card <origin> | share [pact|on|off]" };
         } catch (err: any) {
           return { text: `ClawPhylax error: ${err?.message ?? err}` };
         }

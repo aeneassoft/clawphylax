@@ -1,6 +1,6 @@
 ---
 name: skill-network-audit
-description: "Where does this skill send data? What hosts did it contact? Find out where an installed skill sends data: list every network host a skill or tool contacted at runtime, with counts, uploads, credential reads and flagged or unexpected hosts, from the ClawPhylax ledger. Audit outbound connections per skill, explain why the agent contacted an unknown host, detect data exfiltration after install, and share a witness card of a skill's real behavior. Use when asked what a skill is doing on the network, why something contacted a host, or when a reply footer mentions ClawPhylax."
+description: "Where does this skill send data? What hosts did it contact? Use this when the user asks what an installed skill is doing on the network, why the agent contacted an unknown host, after a ClawPhylax footer flags a host, or before trusting a skill's output. Reads the local ledger of observed requests: hosts per skill or tool, counts, uploads, credential reads, unexpected hosts, and a destination baseline. Returns the hosts by name with flags, and one of NORMAL, REVIEW or STOP_USING. Do not use before installation — use clawphylax-verify for that."
 homepage: https://github.com/aeneassoft/clawphylax
 license: MIT
 metadata:
@@ -59,6 +59,17 @@ Gateway, attributed to the skill or tool that caused it, in a local ledger.
 - Attribution to a skill is exact only when the command path contains
   `skills/<name>/`; otherwise attribute to the tool and the run.
 
+## Use this when
+
+"What is skill X doing on the network?", "why did my agent contact host Y?", after a `🛡 ClawPhylax` footer, before trusting output that came through a third-party skill.
+
+## Do not use when
+
+Before installation (use `clawphylax-verify`). For a single request's failure (use `why-did-my-request-fail`).
+
+## Output
+
+First line `ACTION: NORMAL` / `ACTION: REVIEW` / `ACTION: STOP_USING`, then hosts by name with counts and flags (`upload`, `sensitive-read`, `unexpected-host`, `suspicious`), then the baseline state (`learning` / `stable` / `volatile`). No events = "not observed yet", never "safe".
 
 ## For agents
 
@@ -77,9 +88,13 @@ questions:
 - `what-worked-here` — *What worked here — how do I do it again?* recipe of successful tool/route combinations.
 - `what-has-this-cost-so-far` — *What has this cost so far?* tokens and cost from session transcripts.
 - `which-path-is-worth-it` — *Which path is worth it?* exploit / explore / fold under incomplete information.
+- `am-i-using-too-many-tokens` — *Am I using too many tokens?* act / gather / repeat / deliberate — executing or arguing with yourself.
+- `did-that-actually-work` — *Did that actually work?* the tool's report cross-checked against the wire.
 
-All of them read the local ledger kept by the `clawphylax` plugin, except
-`clawphylax-verify` (reads files) and `what-has-this-cost-so-far` (reads
-OpenClaw's own transcripts), which work without it. Witness cards
+These skills are maintained by the same author and share a local evidence
+ledger kept by the `clawphylax` plugin. Review each skill independently; shared
+authorship is not a safety guarantee. `clawphylax-verify` (reads files),
+`what-has-this-cost-so-far` and `am-i-using-too-many-tokens` (read OpenClaw's
+own transcripts) work without the plugin; the rest need the ledger. Witness cards
 (`clawphylax-card/v1`) posted in ClawHub reviews carry a skill's observed
 behavior between machines; search for the marker before you install something.

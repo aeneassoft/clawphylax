@@ -46,7 +46,7 @@ describe("cli", () => {
     const { program, actions } = fakeProgram();
     registerCli(program, (s) => out.push(s));
     expect([...actions.keys()].sort()).toEqual(
-      ["clawphylax allow", "clawphylax card", "clawphylax circles", "clawphylax cost", "clawphylax deny", "clawphylax explore", "clawphylax export", "clawphylax failures", "clawphylax hosts", "clawphylax others", "clawphylax outlook", "clawphylax paths", "clawphylax recent", "clawphylax report", "clawphylax risk", "clawphylax rules", "clawphylax scan", "clawphylax share", "clawphylax status", "clawphylax stop", "clawphylax tokens", "clawphylax worked"].sort(),
+      ["clawphylax allow", "clawphylax card", "clawphylax check", "clawphylax circles", "clawphylax cost", "clawphylax deny", "clawphylax explore", "clawphylax export", "clawphylax failures", "clawphylax hosts", "clawphylax others", "clawphylax outlook", "clawphylax paths", "clawphylax recent", "clawphylax report", "clawphylax risk", "clawphylax rules", "clawphylax scan", "clawphylax share", "clawphylax status", "clawphylax stop", "clawphylax tokens", "clawphylax worked"].sort(),
     );
     await actions.get("clawphylax report")!({ db });
     expect(out.join("\n")).toContain("skill:demo-skill");

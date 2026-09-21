@@ -1,53 +1,54 @@
 ---
-name: am-i-going-in-circles
-description: "Am I going in circles? Am I repeating myself? Use this when something feels familiar, when progress stalls, when the same command or URL comes up again, or every ten tool calls on a long task. Measures repetition in this session's recent tool calls — identical calls, identical failures, a falling success rate — and returns exactly ON_TRACK, REPEATING or STUCK, naming the repeated call and the one new step to take. Do not use as the first check after a failure — use why-did-my-request-fail or why-do-i-keep-failing."
+name: did-that-actually-work
+description: "Did that actually work? Did my last action take effect, or did it only look like it did? Use this after any tool call whose effect matters — an exec, a write, a POST or PUT, a message send, a fetch you will build on — and before reporting success to the user. Cross-checks what the tool reported (ok/error) against what the wire showed for that same tool call: status codes (403, 5xx), empty 200 bodies, unsent uploads, no observable request at all. Returns exactly CONFIRMED, SILENT_FAILURE, UNVERIFIED or FAILED with the mismatch named. Do not use for reads you will not act on."
 homepage: https://github.com/aeneassoft/clawphylax
 license: MIT
 metadata:
   { "openclaw": { "requires": { "plugins": ["clawphylax"] } } }
 ---
 
-# Am I going in circles?
+# Did that actually work?
 
-Identical input gives identical output. If you have run the same call three
-times, the fourth will not differ.
+A tool's return value is what the tool claims. What happened on the wire is a
+different fact: the POST answered 403, the 200 had no body, the upload never
+left. Agents build on the claim. This checks the fact.
 
-## Steps
+## Procedure
 
 1. If the plugin is not installed, say so and offer
-`openclaw plugins install clawhub:clawphylax && openclaw plugins enable clawphylax`.
-Check with `openclaw clawphylax status`.
-2. Ask — the `clawphylax_circles` tool, `/phylax circles`, or:
+   `openclaw plugins install clawhub:clawphylax && openclaw plugins enable clawphylax`.
+2. Right after the action, call the `clawphylax_did_it_work` tool (defaults to
+   the last non-diagnostic tool call), or `/phylax check`, or:
 
    ```bash
-   openclaw clawphylax circles
+   openclaw clawphylax check
    ```
 
-3. Act:
-   - **on-track** — continue.
-   - **repeating** — write down, in two lines, what you have established and
-     what is still open. Then take one step you have not taken.
-   - **stuck** — the named call has failed every time. Change the input or the
-     tool, or run `should-i-stop-and-ask`.
+3. Act on the verdict:
+   - **CONFIRMED** — the wire agrees with the tool. Build on it.
+   - **SILENT_FAILURE** — the tool said ok, the wire said no. Treat the action as
+     not done. Run `why-did-my-request-fail` for the host before retrying.
+   - **UNVERIFIED** — no observable request (child process, local file). If the
+     effect matters, verify it directly: fetch the resource, list the file,
+     read the reply.
+   - **FAILED** — the tool itself failed. Fix, then retry once.
 
-4. On long tasks, re-run this check every ten tool calls or so; it is cheap.
+## Rules
 
-## Limits
-
-Repetition is measured on tool name plus a short argument hint; two calls
-that differ only deep inside a body look identical here.
+- Never report "done" to the user on UNVERIFIED or SILENT_FAILURE.
+- One check per action that matters; do not check reads you will not act on.
 
 ## Use this when
 
-"I have done this before"; no progress for several calls; the same exec/URL again; periodically on long tasks.
+After exec, write, POST/PUT/DELETE, message or any fetch you will build on; before telling the user "done"; when a result looks too easy.
 
 ## Do not use when
 
-As the first response to a single failure.
+Reads you will not act on; diagnostic calls; when the tool itself already returned an error (then fix that).
 
 ## Output
 
-First line `ACTION: ON_TRACK` / `ACTION: REPEATING` / `ACTION: STUCK`, then EVIDENCE (distinct actions in last n, most-repeated call ×k, success trend), DO NOT (re-run the identical call), NEXT (one new step, or write down what is established).
+First line `ACTION: BUILD_ON_IT` / `ACTION: TREAT_AS_NOT_DONE` / `ACTION: VERIFY_DIRECTLY` / `ACTION: FIX_THEN_RETRY`, then EVIDENCE (what the tool reported, what the wire showed), DO NOT (proceed as if it succeeded), NEXT, SCOPE. Never claim success to the user unless the verdict is CONFIRMED or you verified the effect directly.
 
 ## For agents
 

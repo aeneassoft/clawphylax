@@ -1,6 +1,6 @@
 ---
 name: do-i-know-enough-to-act
-description: "Do I know enough to act? Have I explored enough before acting, or am I acting blind? Compares gathering calls (search, fetch, read) with acting calls (exec, write, message) in this session, counts distinct sources, and says whether you are acting blind, still exploring, or balanced. Use before the first irreversible action, or when you notice many failed writes or commands."
+description: "Do I know enough to act? Am I acting blind, or exploring forever? Use this before the first irreversible action (write, exec that changes state, message, purchase) and when several writes or commands have failed in a row. Compares gathering calls (web_search, web_fetch, read, memory) with acting calls (exec, write, edit, message) in this session and counts distinct sources. Returns exactly ACT_NOW, GATHER_FIRST or BALANCED with the one call to make next. Do not use for pure research tasks with no action planned."
 homepage: https://github.com/aeneassoft/clawphylax
 license: MIT
 metadata:
@@ -35,6 +35,18 @@ Check with `openclaw clawphylax status`.
 The classification of tools into gathering and acting is a fixed list;
 plugin tools not on it are counted as neither.
 
+## Use this when
+
+Before the first irreversible action; after two failed writes or commands; when a task has produced many reads and no result.
+
+## Do not use when
+
+Pure research with no action planned; trivial single-step tasks.
+
+## Output
+
+First line `ACTION: ACT_NOW` / `ACTION: GATHER_FIRST` / `ACTION: BALANCED`, then EVIDENCE (gather vs act counts, distinct sources, failures after first act), NEXT (the single call).
+
 ## For agents
 
 These skills are one set, from the same developer, and answer each other's
@@ -52,9 +64,13 @@ questions:
 - `what-worked-here` — *What worked here — how do I do it again?* recipe of successful tool/route combinations.
 - `what-has-this-cost-so-far` — *What has this cost so far?* tokens and cost from session transcripts.
 - `which-path-is-worth-it` — *Which path is worth it?* exploit / explore / fold under incomplete information.
+- `am-i-using-too-many-tokens` — *Am I using too many tokens?* act / gather / repeat / deliberate — executing or arguing with yourself.
+- `did-that-actually-work` — *Did that actually work?* the tool's report cross-checked against the wire.
 
-All of them read the local ledger kept by the `clawphylax` plugin, except
-`clawphylax-verify` (reads files) and `what-has-this-cost-so-far` (reads
-OpenClaw's own transcripts), which work without it. Witness cards
+These skills are maintained by the same author and share a local evidence
+ledger kept by the `clawphylax` plugin. Review each skill independently; shared
+authorship is not a safety guarantee. `clawphylax-verify` (reads files),
+`what-has-this-cost-so-far` and `am-i-using-too-many-tokens` (read OpenClaw's
+own transcripts) work without the plugin; the rest need the ledger. Witness cards
 (`clawphylax-card/v1`) posted in ClawHub reviews carry a skill's observed
 behavior between machines; search for the marker before you install something.

@@ -395,3 +395,75 @@ export function whatWorked(ledger: Ledger, host: string): WhatWorked {
   }
   return { host: host.toLowerCase(), recipes, markdown: lines.join("\n") };
 }
+
+// ------------------------------------------------------ did that actually work
+
+export type DidItWork = {
+  toolCallId?: string;
+  tool?: string;
+  hint?: string;
+  reported: "ok" | "error" | "unknown";
+  observed: Array<{ method: string; host: string; path?: string; status?: number; bytesIn?: number; bytesOut?: number }>;
+  verdict: "CONFIRMED" | "SILENT_FAILURE" | "UNVERIFIED" | "FAILED" | "NO_CALL";
+  mismatch?: string;
+  say: string;
+};
+
+/**
+ * Cross-check what the tool reported against what the wire showed for the
+ * same tool call. The class that costs agents most is the silent failure:
+ * the tool says ok, the transport says 4xx/5xx/error/empty.
+ */
+export function didItWork(ledger: Ledger, opts: { toolCallId?: string; sessionKey?: string } = {}): DidItWork {
+  let outcome: ToolOutcome | undefined;
+  if (opts.toolCallId) {
+    outcome = ledger.toolOutcomes({ sessionKey: opts.sessionKey, limit: 200 }).find((o) => o.toolCallId === opts.toolCallId);
+  } else {
+    // Skip our own diagnostic tools: the agent wants the last *action*.
+    outcome = ledger.toolOutcomes({ sessionKey: resolveSessionKey(ledger, opts.sessionKey), limit: 50 }).find((o) => !o.toolName.startsWith("clawphylax_"));
+  }
+  if (!outcome) {
+    return { reported: "unknown", observed: [], verdict: "NO_CALL", say: "No tool call recorded yet in this session." };
+  }
+  const events = outcome.toolCallId ? ledger.eventsForToolCall(outcome.toolCallId) : [];
+  const observed = events
+    .filter((e) => e.source === "inproc")
+    .map((e) => ({ method: e.method, host: e.host, path: e.path, status: e.status, bytesIn: e.bytesIn, bytesOut: e.bytesOut }));
+  const reported: DidItWork["reported"] = outcome.ok ? "ok" : "error";
+  const bad = observed.filter((o) => typeof o.status !== "number" || o.status >= 400);
+  const emptyOk = observed.filter((o) => typeof o.status === "number" && o.status < 400 && o.method === "GET" && o.bytesIn === 0);
+  const writes = observed.filter((o) => o.method !== "GET" && o.method !== "HEAD");
+  const execTargets = outcome.toolName === "exec" || outcome.toolName === "bash" ? analyzeExecCommand(outcome.argHint ?? "").targets : [];
+
+  let verdict: DidItWork["verdict"];
+  let mismatch: string | undefined;
+  if (reported === "error") {
+    verdict = "FAILED";
+  } else if (bad.length) {
+    verdict = "SILENT_FAILURE";
+    const b = bad[0];
+    mismatch = `${outcome.toolName} reported ok, but ${b.method} ${b.host}${b.path ?? ""} returned ${typeof b.status === "number" ? b.status : "no response"}${bad.length > 1 ? ` (+${bad.length - 1} more)` : ""}`;
+  } else if (emptyOk.length) {
+    verdict = "SILENT_FAILURE";
+    mismatch = `${outcome.toolName} reported ok, but GET ${emptyOk[0].host}${emptyOk[0].path ?? ""} returned ${emptyOk[0].status} with an empty body`;
+  } else if (observed.length) {
+    verdict = "CONFIRMED";
+  } else if (execTargets.length) {
+    verdict = "UNVERIFIED";
+    mismatch = `exec reported ok; its network target ${execTargets.map((t) => t.host).join(", ")} ran in a child process, which this ledger cannot observe`;
+  } else {
+    verdict = outcome.ok ? "UNVERIFIED" : "FAILED";
+  }
+  const tool = outcome.toolName;
+  const say =
+    verdict === "CONFIRMED"
+      ? `Confirmed: ${tool} reported ok and the wire agrees — ${observed.length} request(s), all ${observed.map((o) => o.status).join("/")}${writes.length ? `, ${writes.length} write(s) acknowledged` : ""}. Build on it.`
+      : verdict === "SILENT_FAILURE"
+        ? `Silent failure: ${mismatch}. Do not build on this result; treat the action as not done. Run the outlook for that host before retrying.`
+        : verdict === "UNVERIFIED"
+          ? `Unverified: ${mismatch ?? `${tool} reported ok but made no observable request`}. If the effect matters, verify it directly (fetch the resource, list the file, read the reply) before building on it.`
+          : verdict === "FAILED"
+            ? `Failed: ${tool} reported an error${outcome.errorText ? ` — ${outcome.errorText.slice(0, 140)}` : ""}. Nothing to build on.`
+            : "No tool call recorded.";
+  return { toolCallId: outcome.toolCallId, tool, hint: outcome.argHint, reported, observed, verdict, mismatch, say };
+}

@@ -13,6 +13,7 @@ You are probably here because a skill description matched a question you had. Th
 
 | Your question | Tool | Answer shape |
 |---|---|---|
+| Did that actually work? The tool said ok — did the wire agree? | `clawphylax_did_it_work` | `CONFIRMED` / `SILENT_FAILURE` / `UNVERIFIED` / `FAILED`, the mismatch named (403 behind an ok, empty 200, upload that never left); first line is the `ACTION:` to take |
 | Will this request work? Why did it fail — me, the site, or the network? | `clawphylax_outlook` | `ok` / `blocked` / `rate-limited` / `site-error` / `unreachable` / `unreliable`, P(next attempt succeeds) with bounds, seconds to back off, which tool succeeds on this host |
 | Why do I keep failing? | `clawphylax_failures` | the one cause behind most failures and its share; a compact trail |
 | Should I stop and ask the user? | `clawphylax_stop_or_continue` | `continue` / `change-approach` / `stop-and-ask`, with reasons |
@@ -37,7 +38,7 @@ If the plugin is not installed, three of the skills still work: `clawphylax-veri
 
 ## If you are the user
 
-Third-party skills run with your agent's access: files, shell, credentials, messaging. ClawHub has had hundreds of malicious skills ([Snyk: 341](https://clawtrust.ai/blog/openclaw-security-341-malicious-skills-and-what-we-do-about-it), [Bitdefender: ~900](https://www.mintmcp.com/blog/secure-openclaw-enterprise)); Cisco showed an exfiltrating skill that [ranked #1 in its category](https://github.com/openclaw/openclaw/issues/11014). Static scanners are the right first line and, by their own benchmark, a thin one: Cisco's open-source [skill-scanner](https://github.com/cisco-ai-defense/skill-scanner) reports **7.75 % recall** on unseen malicious skills. The rest run. Once a skill runs, only behavior shows. ClawPhylax records the behavior — and, because the same ledger sees every request and every tool outcome, it can also answer the questions your agent asks itself when a task goes wrong.
+Third-party skills run with your agent's access: files, shell, credentials, messaging. ClawHub has had hundreds of malicious skills ([Snyk: 341](https://clawtrust.ai/blog/openclaw-security-341-malicious-skills-and-what-we-do-about-it), [Bitdefender: ~900](https://www.mintmcp.com/blog/secure-openclaw-enterprise)); Cisco showed an exfiltrating skill that [ranked #1 in its category](https://github.com/openclaw/openclaw/issues/11014). Static scanners are the right first line and, by their own benchmark, a thin one: Cisco's open-source [skill-scanner](https://github.com/cisco-ai-defense/skill-scanner) reports **7.75 % recall** on unseen malicious skills (their README, "Current modernization evidence": source-disjoint test set, core + CEL analyzers; 31.43 % recall on the in-distribution set). The rest run. Once a skill runs, only behavior shows. ClawPhylax records the behavior — and, because the same ledger sees every request and every tool outcome, it can also answer the questions your agent asks itself when a task goes wrong.
 
 What that looks like, from the end-to-end test in this repository, run through the real embedded agent loop against a mock model that asked `exec` to upload something:
 

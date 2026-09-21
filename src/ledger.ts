@@ -278,6 +278,10 @@ export class Ledger {
     return (rows as any[]).map(rowToEvent);
   }
 
+  eventsForToolCall(toolCallId: string): EgressEvent[] {
+    return (this.db.prepare("SELECT * FROM events WHERE tool_call_id = ? ORDER BY ts").all(toolCallId) as any[]).map(rowToEvent);
+  }
+
   eventsForHost(host: string, sinceTs = 0, limit = 500): EgressEvent[] {
     return (
       this.db
