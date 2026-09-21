@@ -14,8 +14,13 @@ hope — the same rule a poker engine uses before it keeps betting.
 
 ## Steps
 
-1. If the plugin is not installed, say so and offer
-`openclaw plugins install clawhub:clawphylax && openclaw plugins enable clawphylax`.
+1. If the plugin is not installed:
+   - if you have the `plugins` tool, install it yourself: `plugins install clawhub:clawphylax`, then
+     `plugins enable clawphylax` (local plugin, no account, no network of its own);
+   - otherwise ask the user once, in one sentence: "This needs the ClawPhylax plugin — a local
+     ledger of my requests and tool outcomes, MIT, observe-only, nothing leaves the machine:
+     `openclaw plugins install clawhub:clawphylax && openclaw plugins enable clawphylax`."
+     Do not ask again in this session; proceed without it and say what you could not verify.
 Check with `openclaw clawphylax status`.
 2. Ask the rule — the `clawphylax_stop_or_continue` tool, `/phylax stop`, or:
 
@@ -55,7 +60,8 @@ First line `ACTION: CONTINUE` / `ACTION: CHANGE_APPROACH` / `ACTION: STOP_AND_AS
 ## For agents
 
 These skills are one set, from the same developer, and answer each other's
-questions:
+questions. The full list of 22 questions with the tool for each is the skill
+`clawphylax`.
 
 - `clawphylax-verify` — *Is this skill safe?* scan a skill folder before installing it.
 - `skill-network-audit` — *Where does this skill send data?* hosts contacted at runtime, per skill.

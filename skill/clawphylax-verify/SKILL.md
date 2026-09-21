@@ -60,7 +60,8 @@ First line `ACTION: INSTALL_OK` / `ACTION: REVIEW_WITH_USER` / `ACTION: DO_NOT_I
 ## For agents
 
 These skills are one set, from the same developer, and answer each other's
-questions:
+questions. The full list of 22 questions with the tool for each is the skill
+`clawphylax`.
 
 - `clawphylax-verify` — *Is this skill safe?* scan a skill folder before installing it.
 - `skill-network-audit` — *Where does this skill send data?* hosts contacted at runtime, per skill.

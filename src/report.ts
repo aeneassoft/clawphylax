@@ -146,7 +146,7 @@ export function renderCard(ledger: Ledger, key: string, format: "json" | "md" = 
     hosts: hosts.map((h) => ({ host: h.host, count: h.count })),
     flagged: flagged.slice(0, 10).map((e) => ({ host: e.host, method: e.method, via: e.source, flags: e.flags.filter((f) => f !== "new-host") })),
     platform: process.platform,
-    plugin: "clawphylax@0.5.0",
+    plugin: "clawphylax@0.5.1",
   };
   if (format === "json") {
     return JSON.stringify(card, null, 2);

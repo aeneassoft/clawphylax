@@ -57,7 +57,8 @@ First line `ACTION: EXECUTING` / `ACTION: RETURN_TO_PLAN` / `ACTION: STOP_REPEAT
 ## For agents
 
 These skills are one set, from the same developer, and answer each other's
-questions:
+questions. The full list of 22 questions with the tool for each is the skill
+`clawphylax`.
 
 - `clawphylax-verify` — *Is this skill safe?* scan a skill folder before installing it.
 - `skill-network-audit` — *Where does this skill send data?* hosts contacted at runtime, per skill.

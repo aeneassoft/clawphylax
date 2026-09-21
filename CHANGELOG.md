@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.1 — found and installed
+
+- Plugin summary is question-first (the first 250 characters are what ClawHub's plugin
+  search matches and what the card shows); display name carries the first question.
+- New hub skill `clawphylax`: all 22 questions with tool, /phylax command and verdicts.
+- Every skill's install step now lets the agent install the plugin itself when it has the
+  `plugins` tool, and otherwise asks the user once with one specific sentence.
+- `heartbeat_prompt_contribution`: one line into the operator's heartbeat, only when
+  something since the last heartbeat earned it (unconfirmed sends, silent failures, flagged
+  requests, hosts that went blocked). Empty otherwise.
+- `/phylax` on an empty ledger explains what to ask and when, instead of "no events".
+- README: the numbers and the one capability nothing else has, in the first screen.
+
 ## 0.5.0 — messaging: the send is the action
 
 Every OpenClaw turn ends in a send. Five questions about it, from the message

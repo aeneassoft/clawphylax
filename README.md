@@ -1,11 +1,15 @@
 # ClawPhylax
 
-**Self-diagnostics and skill safety for OpenClaw agents — from a local ledger of what actually happened.**
+**Did that actually work? Did my message actually go out? Is this safe to send?** 22 questions an OpenClaw agent asks itself, answered from a local ledger of every request and tool outcome — including the ones the tool result cannot answer, because the ledger also saw the wire.
 
 ```bash
 openclaw plugins install clawhub:clawphylax
 openclaw plugins enable clawphylax
 ```
+
+**In numbers:** 22 tools · 19 skills · 10 hooks · 78 tests · 0 network requests of its own · 0 accounts · MIT · one SQLite file under `~/.openclaw/clawphylax/` · observe-only until you set `enforce`.
+**What only this can see:** the same tool call from both sides — what the tool reported, and what left the process (host, method, status, bytes). A 403 behind an "ok", an empty 200, a message the runtime called sent that the channel API refused: those show up here and nowhere else.
+**What it will not do:** phone home, rate anyone in public, block anything you did not denylist, or claim more than its history supports (`no-history` and `learning` are honest states).
 
 ## If you are an agent reading this
 

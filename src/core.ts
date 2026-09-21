@@ -9,7 +9,7 @@ import { installInterceptor, type Observed } from "./intercept.js";
 import { installUndiciSeam } from "./undici-seam.js";
 import { attributionKey, Ledger } from "./ledger.js";
 import { renderRunFooter } from "./report.js";
-import { asksOf, keywordsOf } from "./messaging.js";
+import { asksOf, heartbeatFindings, keywordsOf } from "./messaging.js";
 import { findSecretShapes } from "./secrets.js";
 import type { Attribution, EgressEvent, Flag, PluginConfig } from "./types.js";
 
@@ -383,6 +383,24 @@ export class Core {
       this.ledger.recordCompaction({ ts: Date.now(), sessionKey: ctx.sessionKey ?? this.lastSessionKey, phase, messageCount: ev.messageCount, compactedCount: ev.compactedCount ?? ev.compactingCount, tokenCount: ev.tokenCount });
     } catch (err: any) {
       this.log.warn("compaction not recorded: " + (err?.message ?? err));
+    }
+  }
+
+  /**
+   * One line for the operator's heartbeat, only when something since the last
+   * heartbeat earned it (unconfirmed sends, silent failures, flagged requests,
+   * hosts that went blocked). Empty otherwise.
+   */
+  heartbeatContribution(sessionKey?: string): string {
+    try {
+      const key = "heartbeat.last";
+      const last = Number(this.ledger.getSetting(key) ?? 0) || Date.now() - 60 * 60_000;
+      const text = heartbeatFindings(this.ledger, last, sessionKey);
+      this.ledger.setSetting(key, String(Date.now()));
+      return text;
+    } catch (err: any) {
+      this.log.warn("heartbeat contribution skipped: " + (err?.message ?? err));
+      return "";
     }
   }
 

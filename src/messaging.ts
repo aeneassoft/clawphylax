@@ -499,3 +499,43 @@ export function taskMatch(ledger: Ledger, opts: { sessionKey?: string } = {}): T
         : `The reply does not match the request: ${reasons.join("; ")}. Do not consider this turn handled. Re-read the request, do the missing action or say plainly that you could not, and reply again.`;
   return { verdict, inbound: { ts: inb.ts, len: inb.len, keywords: inK, asks }, outbound: { ts: out.ts, len: out.len, keywords: outK, to: out.to, delivery }, overlap, asksDone, asksMissing, toolCalls: outcomes.length, failedCalls, hosts, seconds, reasons, say };
 }
+
+// ------------------------------------------------------ heartbeat findings
+//
+// What the operator's heartbeat should know since the last one — only when
+// there is something: unconfirmed or failed sends, silent failures, hosts that
+// went blocked, flagged or blocked requests. Empty string when nothing earned
+// a line. Never a summary, never a sales pitch.
+
+export function heartbeatFindings(ledger: Ledger, sinceTs: number, sessionKey?: string): string {
+  const lines: string[] = [];
+  const sends = ledger.outbounds({ sinceTs, limit: 100 });
+  const bad = sends.map((s) => ({ s, v: didMessageGoOut(ledger, { sendId: s.id }).verdict })).filter((x) => x.v === "NOT_DELIVERED" || x.v === "CANCELLED" || x.v === "CLAIMED_ONLY");
+  if (bad.length) {
+    lines.push(`${bad.length} send${bad.length === 1 ? "" : "s"} not confirmed: ${bad.slice(0, 3).map((x) => `${x.s.to} (${x.v.toLowerCase().replace("_", " ")})`).join(", ")}`);
+  }
+  const outcomes = ledger.toolOutcomes({ sessionKey, sinceTs, limit: 300 }).filter((o) => o.ok && o.toolCallId && !o.toolName.startsWith("clawphylax_"));
+  const silent: string[] = [];
+  for (const o of outcomes.slice(-60)) {
+    const r = didItWork(ledger, { toolCallId: o.toolCallId, sessionKey: o.sessionKey });
+    if (r.verdict === "SILENT_FAILURE") silent.push(`${o.toolName} → ${r.observed[0]?.host ?? "?"} ${r.observed[0]?.status ?? "no response"}`);
+  }
+  if (silent.length) {
+    lines.push(`${silent.length} silent failure${silent.length === 1 ? "" : "s"} (tool said ok, wire said no): ${silent.slice(0, 3).join("; ")}`);
+  }
+  const events = ledger.recentEvents(500).filter((e) => e.ts >= sinceTs && e.source === "inproc");
+  const flagged = events.filter((e) => e.blocked || e.category === "suspicious" || e.flags.includes("sensitive-read") || e.flags.includes("unexpected-host"));
+  if (flagged.length) {
+    const hosts = [...new Set(flagged.map((e) => `${e.host}${e.blocked ? " (blocked)" : ""}`))].slice(0, 3);
+    lines.push(`${flagged.length} flagged request${flagged.length === 1 ? "" : "s"}: ${hosts.join(", ")}`);
+  }
+  const failedHosts = new Map<string, number>();
+  for (const e of events) if (typeof e.status !== "number" || e.status >= 400) failedHosts.set(e.host, (failedHosts.get(e.host) ?? 0) + 1);
+  const blocked = [...failedHosts.entries()].filter(([h, n]) => n >= 3 && ["blocked", "rate-limited"].includes(outlookFor(ledger, h, 24 * 60).diagnosis)).map(([h]) => h);
+  if (blocked.length) {
+    lines.push(`blocked or rate-limited for this agent: ${blocked.slice(0, 3).join(", ")}`);
+  }
+  if (!lines.length) return "";
+  const since = new Date(sinceTs).toISOString().slice(11, 16);
+  return `ClawPhylax since ${since} UTC: ${lines.join(" · ")}. Mention what matters to the user; details: /phylax sent, /phylax check, /phylax report.`;
+}

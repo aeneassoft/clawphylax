@@ -136,3 +136,16 @@ describe("reconcileText", () => {
     l.close();
   });
 });
+
+describe("heartbeatFindings", () => {
+  it("is empty when nothing happened and names an unconfirmed send otherwise", async () => {
+    const { heartbeatFindings } = await import("./messaging.js");
+    const l = new Ledger(":memory:");
+    expect(heartbeatFindings(l, T0)).toBe("");
+    l.recordOutbound({ ts: T0 + 1000, sessionKey: "s1", channelId: "telegram", to: "777", len: 5, cancelled: false });
+    l.markSent({ ts: T0 + 1500, sessionKey: "s1", to: "777", success: false, error: "bot blocked by user" });
+    const t = heartbeatFindings(l, T0);
+    expect(t).toMatch(/1 send not confirmed: 777 \(not delivered\)/);
+    l.close();
+  });
+});

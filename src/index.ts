@@ -441,6 +441,18 @@ export default definePluginEntry({
           const [sub, ...rest] = args.split(/\s+/).filter(Boolean);
           const arg = rest.join(" ");
           if (!sub || sub === "report") {
+            const c = core.ledger.counts();
+            if (!sub && c.events === 0 && core.ledger.toolOutcomes({ limit: 1 }).length === 0) {
+              return {
+                text: [
+                  "ClawPhylax is armed and the ledger is empty — recording starts with the next tool call.",
+                  "Ask it after any action: /phylax check (did that actually work) · /phylax sent (did my message go out) · /phylax send <to> :: <text> (is this safe to send)",
+                  "While troubleshooting: /phylax outlook <host> · failures · stop · circles · explore · risk <host> · paths <json>",
+                  "After a long session: /phylax brief (what did I lose in compaction) · match (did I do what was asked) · reconcile (what did I actually do) · tokens · cost",
+                  "Skills: /phylax scan <folder> before install · /phylax report for where installed skills send data.",
+                ].join("\n"),
+              };
+            }
             return { text: renderSummary(core.ledger, sinceMs(arg)) };
           }
           if (sub === "hosts" && arg) {
@@ -621,6 +633,16 @@ export default definePluginEntry({
         core.compaction("after", { messageCount: Number(e.messageCount) || undefined, compactedCount: Number(e.compactedCount) || undefined, tokenCount: Number(e.tokenCount) || undefined }, hookCtx(ctx));
       } catch {
         /* observer */
+      }
+    });
+
+    // The operator's heartbeat gets one line, only when something earned it.
+    api.on("heartbeat_prompt_contribution", (_event: unknown, ctx: unknown) => {
+      try {
+        const t = core.heartbeatContribution(hookCtx(ctx).sessionKey ?? core.lastSessionKey);
+        return t ? { appendContext: t } : undefined;
+      } catch {
+        return undefined;
       }
     });
 
