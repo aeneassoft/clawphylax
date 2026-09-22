@@ -81,8 +81,34 @@ jobs:
             npm publish --provenance --access public
           fi
 
-  clawhub-plugin:
+  pack:
+    # ClawHub's server-side build from source runs out of memory on this repo
+    # (pinned openclaw devDependency); hand it the prebuilt package instead.
     needs: verify
+    if: ${{ inputs.publish_clawhub }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      tgz: ${{ steps.pack.outputs.tgz }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - id: pack
+        run: |
+          npm pack --silent > pack.txt
+          echo "tgz=$(tail -1 pack.txt)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: clawphylax-pack
+          path: ${{ steps.pack.outputs.tgz }}
+          if-no-files-found: error
+
+  clawhub-plugin:
+    needs: [verify, pack]
     if: ${{ inputs.publish_clawhub }}
     uses: openclaw/clawhub/.github/workflows/package-publish.yml@main
     permissions:
@@ -91,6 +117,8 @@ jobs:
       id-token: write
     with:
       source: aeneassoft/clawphylax
+      package_artifact_name: clawphylax-pack
+      package_artifact_path: ${{ needs.pack.outputs.tgz }}
       dry_run: ${{ inputs.dry_run }}
       changelog: ${{ inputs.changelog }}
       topics: agent-diagnostics,verification,messaging,skill-safety,security
