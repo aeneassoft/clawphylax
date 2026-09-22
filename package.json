@@ -1,6 +1,6 @@
 {
   "name": "clawphylax",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Did that actually work? Did my message actually go out? Is this safe to send? Why did my request fail? Should I stop and ask? Am I going in circles? What did I lose in compaction? 22 answers for OpenClaw agents from a local ledger of every request and tool outcome. Verify skills before install; see where installed skills send data; catch silent failures (tool said ok, wire said 403); confirm message delivery against the channel API; keep secrets from leaving. No cloud, no telemetry, observe-only by default, MIT.",
   "type": "module",
   "license": "MIT",

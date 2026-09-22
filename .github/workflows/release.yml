@@ -24,9 +24,13 @@ on:
         type: boolean
         default: true
       publish_clawhub:
-        description: "Publish plugin + skill to ClawHub"
+        description: "Publish the plugin to ClawHub"
         type: boolean
         default: true
+      publish_skills:
+        description: "Also republish every skill under skill/ to ClawHub"
+        type: boolean
+        default: false
       changelog:
         description: "Release note shown on ClawHub"
         type: string
@@ -95,7 +99,7 @@ jobs:
 
   clawhub-skill:
     needs: verify
-    if: ${{ inputs.publish_clawhub }}
+    if: ${{ inputs.publish_skills }}
     uses: openclaw/clawhub/.github/workflows/skill-publish.yml@main
     permissions:
       contents: read
