@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.5.2 — provenance
+## 0.5.3 — provenance
 
 No code change. First release published through GitHub Actions with OIDC trusted publishing on npm and ClawHub (provenance tier). `openclaw plugins install clawphylax` also resolves via npm.
 
