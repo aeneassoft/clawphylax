@@ -108,22 +108,35 @@ jobs:
           if-no-files-found: error
 
   clawhub-plugin:
+    # Own job instead of ClawHub's reusable workflow: their artifact path does
+    # not pass the OIDC env through, and their source path builds server-side
+    # and runs out of memory on this repo. The clawhub CLI itself uses GitHub
+    # Actions OIDC automatically when ACTIONS_ID_TOKEN_REQUEST_* are present.
     needs: [verify, pack]
     if: ${{ inputs.publish_clawhub }}
-    uses: openclaw/clawhub/.github/workflows/package-publish.yml@main
+    runs-on: ubuntu-latest
     permissions:
-      actions: read
       contents: read
       id-token: write
-    with:
-      source: aeneassoft/clawphylax
-      package_artifact_name: clawphylax-pack
-      package_artifact_path: ${{ needs.pack.outputs.tgz }}
-      dry_run: ${{ inputs.dry_run }}
-      changelog: ${{ inputs.changelog }}
-      topics: agent-diagnostics,verification,messaging,skill-safety,security
-    secrets:
-      clawhub_token: ${{ secrets.CLAWHUB_TOKEN }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v4
+        with:
+          name: clawphylax-pack
+          path: pack
+      - run: npm install -g clawhub@latest
+      - name: Publish prebuilt package to ClawHub (OIDC trusted publishing)
+        env:
+          TGZ: ${{ needs.pack.outputs.tgz }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          CHANGELOG: ${{ inputs.changelog }}
+        run: |
+          set -euo pipefail
+          ARGS=(package publish "pack/$TGZ" --source-repo aeneassoft/clawphylax --source-commit "$GITHUB_SHA" --source-ref "$GITHUB_REF" --topics agent-diagnostics,verification,messaging,skill-safety,security --changelog "$CHANGELOG" --json)
+          if [[ "$DRY_RUN" == "true" ]]; then ARGS+=(--dry-run); fi
+          clawhub "${ARGS[@]}"
 
   clawhub-skill:
     needs: verify
