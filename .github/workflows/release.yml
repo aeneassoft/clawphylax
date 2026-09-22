@@ -90,7 +90,7 @@ jobs:
       contents: read
       id-token: write
     with:
-      source: aeneassoft/clawphylax@${{ github.ref_name }}
+      source: aeneassoft/clawphylax
       dry_run: ${{ inputs.dry_run }}
       changelog: ${{ inputs.changelog }}
       topics: agent-diagnostics,verification,messaging,skill-safety,security
