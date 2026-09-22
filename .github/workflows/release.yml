@@ -134,7 +134,7 @@ jobs:
           CHANGELOG: ${{ inputs.changelog }}
         run: |
           set -euo pipefail
-          ARGS=(package publish "pack/$TGZ" --source-repo aeneassoft/clawphylax --source-commit "$GITHUB_SHA" --source-ref "$GITHUB_REF" --topics agent-diagnostics,verification,messaging,skill-safety,security --changelog "$CHANGELOG" --json)
+          ARGS=(package publish "$PWD/pack/$TGZ" --source-repo aeneassoft/clawphylax --source-commit "$GITHUB_SHA" --source-ref "$GITHUB_REF" --topics agent-diagnostics,verification,messaging,skill-safety,security --changelog "$CHANGELOG" --json)
           if [[ "$DRY_RUN" == "true" ]]; then ARGS+=(--dry-run); fi
           clawhub "${ARGS[@]}"
 
